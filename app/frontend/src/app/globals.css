@@ -1,0 +1,37 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body {
+  @apply bg-surface text-gray-100 antialiased;
+  height: 100%;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  @apply bg-surface-raised;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-surface-border rounded-full;
+}
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-gray-500;
+}
+
+/* Prose overrides for chat messages */
+.prose pre {
+  @apply rounded-lg bg-[#1e2030] border border-surface-border;
+}
+
+.prose code:not(pre > code) {
+  @apply bg-surface-border text-brand-hover px-1.5 py-0.5 rounded text-sm font-mono;
+}

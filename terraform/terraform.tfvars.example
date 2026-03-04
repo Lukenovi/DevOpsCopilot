@@ -1,0 +1,7 @@
+# Copy this file to terraform.tfvars and fill in your values.
+# terraform.tfvars is git-ignored — never commit real values.
+
+project_id   = "your-gcp-project-id"
+region       = "europe-west1"
+env          = "prod"
+vertex_model = "gemini-2.0-flash-001"
