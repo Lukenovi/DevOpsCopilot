@@ -97,68 +97,67 @@ DevOpsCopilot/
 
 ### 1. Bootstrap GCP resources
 
-Before running Terraform, create the GCS state bucket and configure Workload Identity Federation for GitHub Actions:
+Run these commands once with your `gcloud` CLI to create the Terraform state bucket, the CI service account, and its JSON key.
 
 ```bash
-# Create state bucket (change region/name as needed)
-gcloud storage buckets create gs://YOUR_PROJECT_ID-tf-state \
-  --location=europe-west1 \
-  --uniform-bucket-level-access
+# Replace these two values throughout
+export PROJECT_ID=YOUR_PROJECT_ID
+export REGION=europe-west1
 
-# Enable required APIs
+# Enable required GCP APIs
 gcloud services enable \
   cloudresourcemanager.googleapis.com \
   iam.googleapis.com \
-  iamcredentials.googleapis.com
-```
+  run.googleapis.com \
+  artifactregistry.googleapis.com \
+  aiplatform.googleapis.com \
+  firestore.googleapis.com \
+  secretmanager.googleapis.com \
+  --project=${PROJECT_ID}
 
-Set up Workload Identity Federation so GitHub Actions can authenticate without long-lived keys:
-
-```bash
-# Create WIF pool
-gcloud iam workload-identity-pools create github-pool \
-  --location=global \
-  --display-name="GitHub Actions Pool"
-
-# Create provider
-gcloud iam workload-identity-pools providers create-oidc github-provider \
-  --location=global \
-  --workload-identity-pool=github-pool \
-  --issuer-uri=https://token.actions.githubusercontent.com \
-  --attribute-mapping="google.subject=assertion.sub,attribute.repository=assertion.repository" \
-  --attribute-condition="assertion.repository=='YOUR_ORG/YOUR_REPO'"
-
-# Create Terraform service account
+# Create the CI/CD service account
 gcloud iam service-accounts create terraform-sa \
-  --display-name="Terraform CI Service Account"
+  --display-name="Terraform CI Service Account" \
+  --project=${PROJECT_ID}
 
-# Grant necessary roles to the SA
-for role in roles/owner; do
-  gcloud projects add-iam-policy-binding YOUR_PROJECT_ID \
-    --member="serviceAccount:terraform-sa@YOUR_PROJECT_ID.iam.gserviceaccount.com" \
-    --role="$role"
+# Grant the roles Terraform needs
+for role in \
+  roles/editor \
+  roles/iam.roleAdmin \
+  roles/iam.serviceAccountAdmin \
+  roles/storage.admin; do
+  gcloud projects add-iam-policy-binding ${PROJECT_ID} \
+    --member="serviceAccount:terraform-sa@${PROJECT_ID}.iam.gserviceaccount.com" \
+    --role="${role}"
 done
 
-# Bind WIF to SA
-gcloud iam service-accounts add-iam-policy-binding \
-  terraform-sa@YOUR_PROJECT_ID.iam.gserviceaccount.com \
-  --role=roles/iam.workloadIdentityUser \
-  --member="principalSet://iam.googleapis.com/projects/YOUR_PROJECT_NUMBER/locations/global/workloadIdentityPools/github-pool/attribute.repository/YOUR_ORG/YOUR_REPO"
+# Generate the JSON key — this file becomes the GCP_SA_KEY secret
+gcloud iam service-accounts keys create gcp-sa-key.json \
+  --iam-account=terraform-sa@${PROJECT_ID}.iam.gserviceaccount.com
+
+# Print the key so you can copy it into GitHub Secrets
+cat gcp-sa-key.json
 ```
+
+> **Security:** `gcp-sa-key.json` is already listed in `.gitignore`. Never commit it. Delete the local file once you have added it to GitHub Secrets.
+> ```bash
+> rm gcp-sa-key.json
+> ```
 
 ### 2. Configure GitHub Secrets
 
-In your GitHub repository settings, add:
+Go to **Repository → Settings → Secrets and variables → Actions → New repository secret** and add each of the following:
 
-| Secret | Value |
-|---|---|
-| `GCP_PROJECT_ID` | Your GCP project ID |
-| `GCP_REGION` | `europe-west1` |
-| `GCP_SERVICE_ACCOUNT` | `terraform-sa@YOUR_PROJECT_ID.iam.gserviceaccount.com` |
-| `GCP_WORKLOAD_IDENTITY_PROVIDER` | WIF provider resource name |
-| `TF_STATE_BUCKET` | GCS bucket name for Terraform state |
-| `AR_REPOSITORY` | `devops-copilot-prod` (from Terraform output) |
-| `BACKEND_URL` | Cloud Run backend URL (after first deploy) |
+| Secret | Value | When to add |
+|---|---|---|
+| `GCP_SA_KEY` | Full JSON contents of `gcp-sa-key.json` generated above | Before first run |
+| `GCP_PROJECT_ID` | Your GCP project ID (e.g. `my-project-123`) | Before first run |
+| `GCP_REGION` | `europe-west1` | Before first run |
+| `TF_STATE_BUCKET` | Name of your existing GCS bucket for Terraform state | Before first run |
+| `AR_REPOSITORY` | Artifact Registry repo ID — from Terraform output `artifact_registry_url` (e.g. `devops-copilot-prod`) | After first `terraform apply` |
+| `BACKEND_URL` | Full HTTPS URL of the Cloud Run backend — from Terraform output `backend_url` | After first `terraform apply` |
+
+> **Tip:** `AR_REPOSITORY` and `BACKEND_URL` are only known after the infra pipeline runs for the first time. Add `GCP_SA_KEY`, `GCP_PROJECT_ID`, `GCP_REGION`, and `TF_STATE_BUCKET` first, trigger the infra pipeline, then fill in the remaining two secrets.
 
 ### 3. Deploy infrastructure
 
@@ -217,7 +216,7 @@ The system prompt is the single most impactful knob in a production AI assistant
 
 ### 4. Security
 
-- **No long-lived credentials** — use Workload Identity Federation for CI/CD (zero key files) and the metadata server for Cloud Run (zero credentials in containers).
+- **Service account key stored as a GitHub Secret** — the `GCP_SA_KEY` secret is encrypted at rest by GitHub and never exposed in logs. Rotate the key periodically with `gcloud iam service-accounts keys create` and delete the old key version. Cloud Run itself uses the metadata server (no key files inside containers).
 - **Principle of least privilege** — the Cloud Run service account has only the four roles it needs: `aiplatform.user`, `datastore.user`, `secretmanager.secretAccessor`, `run.invoker`.
 - **CORS locked to known origins** — in production, `FRONTEND_ORIGIN` restricts cross-origin requests to your frontend URL only.
 - **Input validation** — Pydantic enforces `max_length=4000` on user messages to prevent prompt injection via excessively long inputs.

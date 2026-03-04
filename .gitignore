@@ -19,6 +19,10 @@ dist/
 .ruff_cache/
 .mypy_cache/
 
+# GCP service account key — NEVER commit this
+gcp-sa-key.json
+*.json.key
+
 # Environment files
 .env
 .env.local
