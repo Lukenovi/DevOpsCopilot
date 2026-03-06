@@ -81,6 +81,19 @@ resource "google_secret_manager_secret" "admin_api_key" {
   }
 }
 
+# Placeholder version — replace with a strong random key after first deploy:
+#   $key = [System.Convert]::ToBase64String((1..32 | ForEach-Object { Get-Random -Maximum 256 }))
+#   $key | gcloud secrets versions add devops-copilot-admin-key-prod --data-file=- --project=devopscopilot-489222
+resource "google_secret_manager_secret_version" "admin_api_key_placeholder" {
+  secret      = google_secret_manager_secret.admin_api_key.id
+  secret_data = "change-me-before-use"
+
+  lifecycle {
+    # Prevent Terraform from overwriting the value once you set a real key
+    ignore_changes = [secret_data]
+  }
+}
+
 module "cloud_run_backend" {
   source     = "./modules/cloud_run"
   project_id = var.project_id
