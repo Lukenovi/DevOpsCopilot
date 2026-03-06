@@ -8,26 +8,29 @@ provider "google-beta" {
   region  = var.region
 }
 
-# ─── Enable required APIs ───────────────────────────────────────────────────
-resource "google_project_service" "apis" {
-  for_each = toset([
-    "run.googleapis.com",
-    "artifactregistry.googleapis.com",
-    "aiplatform.googleapis.com",
-    "firestore.googleapis.com",
-    "secretmanager.googleapis.com",
-    "cloudresourcemanager.googleapis.com",
-    "iam.googleapis.com",
-    # TODO: re-enable when VPC networking is added back
-    # "compute.googleapis.com",
-    # "vpcaccess.googleapis.com",
-    # "servicenetworking.googleapis.com",
-  ])
-
-  project            = var.project_id
-  service            = each.key
-  disable_on_destroy = false
-}
+# ─── APIs ────────────────────────────────────────────────────────────────────
+# APIs are enabled manually before running Terraform. Keeping management here
+# is optional — uncomment if you want Terraform to own API enablement and
+# ensure terraform-sa has roles/serviceusage.serviceUsageAdmin.
+#
+# resource "google_project_service" "apis" {
+#   for_each = toset([
+#     "run.googleapis.com",
+#     "artifactregistry.googleapis.com",
+#     "aiplatform.googleapis.com",
+#     "firestore.googleapis.com",
+#     "secretmanager.googleapis.com",
+#     "cloudresourcemanager.googleapis.com",
+#     "iam.googleapis.com",
+#     # TODO: re-enable when VPC networking is added back
+#     # "compute.googleapis.com",
+#     # "vpcaccess.googleapis.com",
+#     # "servicenetworking.googleapis.com",
+#   ])
+#   project            = var.project_id
+#   service            = each.key
+#   disable_on_destroy = false
+# }
 
 # ─── Modules ─────────────────────────────────────────────────────────────────
 
@@ -46,16 +49,12 @@ module "artifact_registry" {
   project_id = var.project_id
   region     = var.region
   env        = var.env
-
-  depends_on = [google_project_service.apis]
 }
 
 module "iam" {
   source     = "./modules/iam"
   project_id = var.project_id
   env        = var.env
-
-  depends_on = [google_project_service.apis]
 }
 
 module "firestore" {
@@ -63,8 +62,6 @@ module "firestore" {
   project_id = var.project_id
   region     = var.region
   env        = var.env
-
-  depends_on = [google_project_service.apis]
 }
 
 # ─── Secret Manager — ADMIN_API_KEY ─────────────────────────────────────────
@@ -82,8 +79,6 @@ resource "google_secret_manager_secret" "admin_api_key" {
       }
     }
   }
-
-  depends_on = [google_project_service.apis]
 }
 
 module "cloud_run_backend" {
