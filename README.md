@@ -213,15 +213,19 @@ Go to **Repository → Settings → Secrets and variables → Actions → New re
 
 ### 3. Deploy infrastructure
 
-Push a change to `terraform/` on `main`, or trigger manually via GitHub Actions:
+Trigger manually via GitHub Actions:
 
 ```
-GitHub Actions → Infrastructure — Terraform → Run workflow → apply
+GitHub Actions → Infrastructure — Terraform → Run workflow → action: apply
 ```
 
 ### 4. Deploy the application
 
-Push a change to `app/` on `main`, or trigger the app workflow manually.
+Trigger manually via GitHub Actions:
+
+```
+GitHub Actions → Application — Build & Deploy → Run workflow
+```
 
 ---
 
@@ -383,18 +387,21 @@ The system prompt is the single most impactful knob in a production AI assistant
 
 ## Deployment Flow Summary
 
+Both pipelines are **manual only** — nothing runs automatically on commit.
+
 ```
-git push main
+GitHub Actions → Infrastructure — Terraform → Run workflow
       │
-      ├── terraform/** changed? ──► infra.yml
-      │                              ├── terraform plan  (always)
-      │                              └── terraform apply (main only)
+      └── action = plan  ──► terraform plan (comment in GH Actions log)
+      └── action = apply ──► terraform plan → terraform apply
+      └── action = destroy ► terraform destroy
+
+GitHub Actions → Application — Build & Deploy → Run workflow
       │
-      └── app/** changed? ────────► app.yml
-                                     ├── docker build (backend + frontend)
-                                     ├── trivy vulnerability scan
-                                     ├── docker push → Artifact Registry
-                                     └── gcloud run services update
-                                          ├── devops-copilot-backend
-                                          └── devops-copilot-frontend
+      ├── docker build (backend + frontend)
+      ├── trivy vulnerability scan
+      ├── docker push → Artifact Registry
+      └── gcloud run services update
+           ├── devops-copilot-backend
+           └── devops-copilot-frontend
 ```
