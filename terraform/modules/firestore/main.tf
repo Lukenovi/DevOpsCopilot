@@ -51,6 +51,11 @@ resource "google_firestore_index" "knowledge_base_vector" {
     }
   }
 
+  fields {
+    field_path = "__name__"
+    order      = "ASCENDING"
+  }
+
   depends_on = [google_firestore_database.default]
 }
 
