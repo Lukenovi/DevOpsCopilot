@@ -40,9 +40,18 @@ variable "allow_unauthenticated" {
 }
 
 variable "env_vars" {
-  description = "Environment variables to set on the container."
+  description = "Plain-text environment variables to set on the container."
   type        = map(string)
   default     = {}
+}
+
+variable "secret_env_vars" {
+  description = "Secret Manager secrets to mount as environment variables. Map of env var name -> {secret, version}."
+  type = map(object({
+    secret  = string
+    version = string
+  }))
+  default = {}
 }
 
 variable "container_port" {

@@ -92,9 +92,17 @@ class VertexAIService:
         self,
         user_message: str,
         history: Optional[list[Message]] = None,
+        rag_context: Optional[str] = None,
     ) -> tuple[str, int]:
         """
         Generate a response from Gemini.
+
+        Args:
+            user_message: The raw user prompt.
+            history:      Prior conversation turns.
+            rag_context:  Pre-formatted internal knowledge chunks to inject
+                          before the user message. When provided, the model
+                          is instructed to ground its answer in this context.
 
         Returns:
             (response_text, total_token_count)
@@ -102,8 +110,21 @@ class VertexAIService:
         chat_history = self._build_history(history or [])
         chat_session = self._model.start_chat(history=chat_history)
 
+        # Prepend retrieved context so the model grounds its answer
+        if rag_context:
+            prompt = (
+                f"{rag_context}\n\n"
+                "---\n"
+                "Using the internal knowledge above where relevant, answer the "
+                "following question. If the internal knowledge does not cover the "
+                "topic, answer from your general expertise and say so clearly.\n\n"
+                f"**User question:** {user_message}"
+            )
+        else:
+            prompt = user_message
+
         response = await chat_session.send_message_async(
-            content=user_message,
+            content=prompt,
             generation_config=self._generation_config,
             safety_settings=SAFETY_SETTINGS,
         )
@@ -111,5 +132,5 @@ class VertexAIService:
         text = response.text
         token_count: int = getattr(response.usage_metadata, "total_token_count", 0)
 
-        logger.info("vertex_ai_response", tokens=token_count)
+        logger.info("vertex_ai_response", tokens=token_count, rag_used=bool(rag_context))
         return text, token_count

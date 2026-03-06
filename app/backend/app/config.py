@@ -22,6 +22,11 @@ class Settings(BaseSettings):
     environment: str = Field(default="prod", alias="ENVIRONMENT")
     frontend_origin: str = Field(default="*", alias="FRONTEND_ORIGIN")
 
+    # Admin API key — protects /api/v1/documents endpoints.
+    # Set a strong random string (e.g. openssl rand -hex 32).
+    # Leave empty to disable the guard (not recommended in production).
+    admin_api_key: str = Field(default="", alias="ADMIN_API_KEY")
+
     @property
     def allowed_origins(self) -> list[str]:
         if self.environment == "prod":

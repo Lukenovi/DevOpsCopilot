@@ -14,12 +14,12 @@
 #                           --iam-account=terraform-sa@PROJECT_ID.iam.gserviceaccount.com
 #                       Then paste the full contents of key.json as the secret value.
 #
+# ── GitHub Variables (Settings → Secrets and variables → Actions → Variables) ─
+#
 #   GCP_PROJECT_ID    — GCP project ID  (e.g. my-devops-project-123)
 #
 #   TF_STATE_BUCKET   — GCS bucket name that holds Terraform remote state
 #                       (e.g. my-devops-project-123-tf-state)
-#
-# ── GitHub Variables (Settings → Secrets and variables → Actions → Variables) ─
 #
 #   TF_VERSION        — (optional) Override the Terraform version to use.
 #                       Defaults to the value hardcoded in env.TF_VERSION below.
@@ -54,7 +54,7 @@ permissions:
 env:
   TF_VERSION: "1.7.5"
   TF_WORKING_DIR: "./terraform"
-  TF_VAR_project_id: ${{ secrets.GCP_PROJECT_ID }}
+  TF_VAR_project_id: ${{ vars.GCP_PROJECT_ID }}
 
 jobs:
   # ─── Terraform Plan ─────────────────────────────────────────────────────────
@@ -93,7 +93,7 @@ jobs:
         id: init
         run: |
           terraform init \
-            -backend-config="bucket=${{ secrets.TF_STATE_BUCKET }}" \
+            -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" \
             -input=false \
             -no-color
 
@@ -111,7 +111,7 @@ jobs:
             -detailed-exitcode
         continue-on-error: true
         env:
-          TF_VAR_project_id: ${{ secrets.GCP_PROJECT_ID }}
+          TF_VAR_project_id: ${{ vars.GCP_PROJECT_ID }}
 
       - name: Upload Plan Artifact
         uses: actions/upload-artifact@v4
@@ -186,7 +186,7 @@ jobs:
       - name: Terraform Init
         run: |
           terraform init \
-            -backend-config="bucket=${{ secrets.TF_STATE_BUCKET }}" \
+            -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" \
             -input=false \
             -no-color
 

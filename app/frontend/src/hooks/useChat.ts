@@ -4,8 +4,12 @@ import { useState, useCallback, useRef } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { sendChatMessage, deleteSession, type Message } from "@/lib/api";
 
+export interface MessageWithSources extends Message {
+  sources?: string[];
+}
+
 export function useChat() {
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<MessageWithSources[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const sessionIdRef = useRef<string | null>(null);
@@ -13,7 +17,7 @@ export function useChat() {
   const sendMessage = useCallback(async (text: string) => {
     if (!text.trim() || isLoading) return;
 
-    const userMsg: Message = {
+    const userMsg: MessageWithSources = {
       id: uuidv4(),
       role: "user",
       content: text,
@@ -27,7 +31,11 @@ export function useChat() {
     try {
       const response = await sendChatMessage(text, sessionIdRef.current);
       sessionIdRef.current = response.session_id;
-      setMessages((prev) => [...prev, response.message]);
+      const assistantMsg: MessageWithSources = {
+        ...response.message,
+        sources: response.sources,
+      };
+      setMessages((prev) => [...prev, assistantMsg]);
     } catch (err: unknown) {
       const message =
         err instanceof Error ? err.message : "An unexpected error occurred.";

@@ -64,6 +64,25 @@ module "firestore" {
   depends_on = [google_project_service.apis]
 }
 
+# ─── Secret Manager — ADMIN_API_KEY ─────────────────────────────────────────
+# The secret resource is created here; the value is set separately:
+#   gcloud secrets versions add devops-copilot-admin-key-prod \
+#     --data-file=- <<< "your-strong-random-key"
+resource "google_secret_manager_secret" "admin_api_key" {
+  project   = var.project_id
+  secret_id = "devops-copilot-admin-key-${var.env}"
+
+  replication {
+    user_managed {
+      replicas {
+        location = var.region
+      }
+    }
+  }
+
+  depends_on = [google_project_service.apis]
+}
+
 module "cloud_run_backend" {
   source     = "./modules/cloud_run"
   project_id = var.project_id
@@ -76,12 +95,19 @@ module "cloud_run_backend" {
   vpc_connector_name    = module.networking.vpc_connector_name
 
   env_vars = {
-    ENVIRONMENT       = var.env
-    GCP_PROJECT_ID    = var.project_id
-    GCP_REGION        = var.region
-    VERTEX_MODEL      = var.vertex_model
-    FIRESTORE_DB      = "(default)"
-    FRONTEND_ORIGIN   = module.cloud_run_frontend.service_url
+    ENVIRONMENT     = var.env
+    GCP_PROJECT_ID  = var.project_id
+    GCP_REGION      = var.region
+    VERTEX_MODEL    = var.vertex_model
+    FIRESTORE_DB    = "(default)"
+    FRONTEND_ORIGIN = module.cloud_run_frontend.service_url
+  }
+
+  secret_env_vars = {
+    ADMIN_API_KEY = {
+      secret  = google_secret_manager_secret.admin_api_key.secret_id
+      version = "latest"
+    }
   }
 
   depends_on = [
@@ -89,6 +115,7 @@ module "cloud_run_backend" {
     module.artifact_registry,
     module.networking,
     module.firestore,
+    google_secret_manager_secret.admin_api_key,
   ]
 }
 

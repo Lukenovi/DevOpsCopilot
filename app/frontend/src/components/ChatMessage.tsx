@@ -4,17 +4,18 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
-import { Bot, User, Copy, Check } from "lucide-react";
+import { Bot, User, Copy, Check, BookOpen } from "lucide-react";
 import { useState } from "react";
-import type { Message } from "@/lib/api";
+import type { MessageWithSources } from "@/hooks/useChat";
 import { clsx } from "clsx";
 
 interface Props {
-  message: Message;
+  message: MessageWithSources;
 }
 
 export default function ChatMessage({ message }: Props) {
   const isUser = message.role === "user";
+  const hasSources = !isUser && message.sources && message.sources.length > 0;
 
   return (
     <div
@@ -37,37 +38,55 @@ export default function ChatMessage({ message }: Props) {
         )}
       </div>
 
-      {/* Bubble */}
-      <div
-        className={clsx(
-          "relative max-w-[80%] rounded-2xl px-4 py-3 text-sm",
-          isUser
-            ? "rounded-tr-sm bg-brand text-white"
-            : "rounded-tl-sm border border-surface-border bg-surface-raised text-gray-100"
-        )}
-      >
-        {isUser ? (
-          <p className="whitespace-pre-wrap">{message.content}</p>
-        ) : (
-          <div className="prose prose-invert prose-sm max-w-none">
-            <ReactMarkdown
-              remarkPlugins={[remarkGfm]}
-              components={{
-                code({ node, className, children, ...props }) {
-                  const match = /language-(\w+)/.exec(className || "");
-                  const codeString = String(children).replace(/\n$/, "");
-                  return match ? (
-                    <CodeBlock lang={match[1]} code={codeString} />
-                  ) : (
-                    <code className={className} {...props}>
-                      {children}
-                    </code>
-                  );
-                },
-              }}
-            >
-              {message.content}
-            </ReactMarkdown>
+      {/* Bubble + sources */}
+      <div className={clsx("flex max-w-[80%] flex-col gap-1.5", isUser && "items-end")}>
+        <div
+          className={clsx(
+            "relative rounded-2xl px-4 py-3 text-sm",
+            isUser
+              ? "rounded-tr-sm bg-brand text-white"
+              : "rounded-tl-sm border border-surface-border bg-surface-raised text-gray-100"
+          )}
+        >
+          {isUser ? (
+            <p className="whitespace-pre-wrap">{message.content}</p>
+          ) : (
+            <div className="prose prose-invert prose-sm max-w-none">
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                components={{
+                  code({ node, className, children, ...props }) {
+                    const match = /language-(\w+)/.exec(className || "");
+                    const codeString = String(children).replace(/\n$/, "");
+                    return match ? (
+                      <CodeBlock lang={match[1]} code={codeString} />
+                    ) : (
+                      <code className={className} {...props}>
+                        {children}
+                      </code>
+                    );
+                  },
+                }}
+              >
+                {message.content}
+              </ReactMarkdown>
+            </div>
+          )}
+        </div>
+
+        {/* Source badges — shown below assistant messages that used internal docs */}
+        {hasSources && (
+          <div className="flex flex-wrap items-center gap-1.5 px-1">
+            <BookOpen className="h-3 w-3 text-gray-500" />
+            <span className="text-[10px] text-gray-500">Sources:</span>
+            {message.sources!.map((src) => (
+              <span
+                key={src}
+                className="rounded-full border border-brand/30 bg-brand/10 px-2 py-0.5 text-[10px] text-brand-hover"
+              >
+                {src}
+              </span>
+            ))}
           </div>
         )}
       </div>
@@ -86,7 +105,6 @@ function CodeBlock({ lang, code }: { lang: string; code: string }) {
 
   return (
     <div className="relative my-2 overflow-hidden rounded-lg border border-surface-border">
-      {/* Header bar */}
       <div className="flex items-center justify-between bg-[#1e2030] px-4 py-2">
         <span className="text-xs font-medium text-gray-400">{lang}</span>
         <button

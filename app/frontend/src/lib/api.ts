@@ -12,6 +12,7 @@ export interface ChatResponse {
   session_id: string;
   message: Message;
   token_count?: number;
+  sources: string[];
 }
 
 export async function sendChatMessage(

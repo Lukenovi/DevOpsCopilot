@@ -15,20 +15,54 @@ User Browser
 │  • Dark-theme chat UI                               │
 │  • Markdown + syntax-highlighted code blocks        │
 │  • Session management (create / continue / clear)  │
+│  • Source-badge overlay on RAG-grounded answers     │
 └───────────────────┬─────────────────────────────────┘
                     │ HTTPS (Cloud Run service-to-service)
                     ▼
 ┌─────────────────────────────────────────────────────┐
 │  Cloud Run — Backend (FastAPI + Python)              │
-│  • POST /api/v1/chat                                │
+│  • POST /api/v1/chat          ← conversation + RAG  │
 │  • GET  /api/v1/sessions/{id}                       │
 │  • DELETE /api/v1/sessions/{id}                     │
+│  • POST /api/v1/documents     ← ingest (admin)      │
+│  • DELETE /api/v1/documents/{source} (admin)        │
+│  • GET  /api/v1/documents/search  (admin)           │
 │  • /health                                          │
-└──────────┬──────────────────┬───────────────────────┘
-           │                  │
-           ▼                  ▼
-    Vertex AI Gemini     Firestore (Native)
-    (europe-west1)       Conversation history
+└──────────┬─────────────┬────────────────────────────┘
+           │             │
+           │    ┌────────▼──────────────────────────┐
+           │    │  Retrieval Service (RAG)           │
+           │    │  1. Embed query (text-embedding-004│
+           │    │  2. find_nearest in Firestore      │
+           │    │  3. Prepend context to prompt      │
+           │    └────────┬──────────────────────────┘
+           │             │
+           ▼             ▼
+    Vertex AI        Firestore (Native mode)
+    • Gemini flash   • Conversation history
+    • Embeddings     • Knowledge base (vector index)
+    (europe-west1)
+```
+
+### RAG flow
+
+```
+User question
+      │
+      ▼
+  embed query (text-embedding-004, 768-dim)
+      │
+      ▼
+  Firestore find_nearest  ─────► top-5 knowledge chunks
+      │                               (COSINE distance)
+      ▼
+  build RAG context block
+      │
+      ▼
+  Gemini prompt = [system] + [RAG context] + [chat history] + [question]
+      │
+      ▼
+  Answer + source list ─────► frontend source badges
 ```
 
 **Key GCP services used:**
@@ -36,10 +70,11 @@ User Browser
 | Service | Purpose |
 |---|---|
 | Cloud Run | Serverless hosting for frontend & backend |
-| Vertex AI (Gemini) | LLM inference |
-| Firestore | Conversation persistence |
+| Vertex AI — Gemini `gemini-2.0-flash-001` | LLM inference |
+| Vertex AI — `text-embedding-004` | Document + query embedding (768-dim) |
+| Firestore (Native mode) | Conversation history + knowledge base vector index |
+| Secret Manager | Runtime secrets (incl. `ADMIN_API_KEY`) |
 | Artifact Registry | Private Docker image storage |
-| Secret Manager | Runtime secrets |
 | VPC Access Connector | Private networking |
 | Cloud Monitoring | Observability |
 
@@ -52,20 +87,28 @@ DevOpsCopilot/
 ├── app/
 │   ├── backend/              # FastAPI Python API
 │   │   ├── app/
-│   │   │   ├── routers/      # HTTP route handlers
-│   │   │   ├── services/     # Vertex AI + Firestore clients
-│   │   │   ├── models/       # Pydantic schemas
-│   │   │   └── config.py     # Settings (env vars)
+│   │   │   ├── routers/
+│   │   │   │   ├── chat.py       # Chat + RAG pipeline
+│   │   │   │   ├── documents.py  # Knowledge-base admin API
+│   │   │   │   └── health.py
+│   │   │   ├── services/
+│   │   │   │   ├── vertex_ai.py     # Gemini (LLM)
+│   │   │   │   ├── retrieval.py     # Embedding + vector search
+│   │   │   │   └── conversation.py  # Firestore session store
+│   │   │   ├── models/          # Pydantic schemas
+│   │   │   └── config.py        # Settings (env vars)
 │   │   ├── main.py
 │   │   ├── Dockerfile
 │   │   └── requirements.txt
 │   └── frontend/             # Next.js 14 web app
 │       ├── src/
 │       │   ├── app/          # App Router pages
-│       │   ├── components/   # Chat, Message, Input
+│       │   ├── components/   # Chat, ChatMessage (+ source badges), ChatInput
 │       │   ├── hooks/        # useChat state hook
 │       │   └── lib/          # API client
 │       └── Dockerfile
+├── scripts/
+│   └── ingest.py             # CLI tool — batch-ingest docs into knowledge base
 ├── terraform/                # IaC — single environment
 │   ├── main.tf
 │   ├── variables.tf
@@ -74,7 +117,7 @@ DevOpsCopilot/
 │   └── modules/
 │       ├── artifact_registry/
 │       ├── cloud_run/
-│       ├── firestore/
+│       ├── firestore/        # Firestore DB + vector index
 │       ├── iam/
 │       └── networking/
 └── .github/
@@ -148,16 +191,25 @@ cat gcp-sa-key.json
 
 Go to **Repository → Settings → Secrets and variables → Actions → New repository secret** and add each of the following:
 
+**Secret** — go to **Secrets** tab:
+
 | Secret | Value | When to add |
 |---|---|---|
 | `GCP_SA_KEY` | Full JSON contents of `gcp-sa-key.json` generated above | Before first run |
+
+**Variables** — go to **Variables** tab:
+
+| Variable | Value | When to add |
+|---|---|---|
 | `GCP_PROJECT_ID` | Your GCP project ID (e.g. `my-project-123`) | Before first run |
 | `GCP_REGION` | `europe-west1` | Before first run |
 | `TF_STATE_BUCKET` | Name of your existing GCS bucket for Terraform state | Before first run |
 | `AR_REPOSITORY` | Artifact Registry repo ID — from Terraform output `artifact_registry_url` (e.g. `devops-copilot-prod`) | After first `terraform apply` |
 | `BACKEND_URL` | Full HTTPS URL of the Cloud Run backend — from Terraform output `backend_url` | After first `terraform apply` |
 
-> **Tip:** `AR_REPOSITORY` and `BACKEND_URL` are only known after the infra pipeline runs for the first time. Add `GCP_SA_KEY`, `GCP_PROJECT_ID`, `GCP_REGION`, and `TF_STATE_BUCKET` first, trigger the infra pipeline, then fill in the remaining two secrets.
+> **Tip:** `AR_REPOSITORY` and `BACKEND_URL` are only known after the infra pipeline runs for the first time. Add the first three variables and the secret, trigger the infra pipeline, then fill in the remaining two variables.
+
+> **Note:** `ADMIN_API_KEY` does **not** go into GitHub — it is stored directly in Secret Manager after `terraform apply` (see step 5 below).
 
 ### 3. Deploy infrastructure
 
@@ -170,6 +222,87 @@ GitHub Actions → Infrastructure — Terraform → Run workflow → apply
 ### 4. Deploy the application
 
 Push a change to `app/` on `main`, or trigger the app workflow manually.
+
+---
+
+## Knowledge Base (RAG)
+
+The backend uses **Retrieval-Augmented Generation**: every chat message is first used to retrieve the most relevant internal knowledge chunks, which are injected into the Gemini prompt before answering. The frontend displays which source documents contributed to each answer.
+
+### 5. Set the Admin API Key in Secret Manager
+
+Terraform creates the `devops-copilot-admin-key-prod` secret but leaves it empty — you must populate it with a strong random value after `terraform apply`:
+
+```powershell
+# Generate a random key and store it in Secret Manager
+$key = [System.Convert]::ToBase64String((1..32 | ForEach-Object { Get-Random -Maximum 256 })) 
+$key | gcloud secrets versions add devops-copilot-admin-key-prod --data-file=- --project=YOUR_PROJECT_ID
+
+# Print it so you can use it with the ingest script
+Write-Host "ADMIN_API_KEY: $key"
+```
+
+Keep this key somewhere safe — you'll need it every time you call the documents API.
+
+### 6. Ingest your internal documents
+
+Install the ingest script's dependency, then point it at a folder of markdown / text files:
+
+```powershell
+pip install httpx
+
+python scripts/ingest.py `
+  --dir ./docs `
+  --api-url https://<your-backend-url> `
+  --key <ADMIN_API_KEY>
+```
+
+**Supported file types:** `.md`, `.txt`, `.rst`, `.adoc`
+
+**Flags:**
+
+| Flag | Default | Description |
+|---|---|---|
+| `--dir` | *(required)* | Directory to scan recursively |
+| `--api-url` | *(required)* | Full URL of the Cloud Run backend |
+| `--key` | *(required)* | Value of `ADMIN_API_KEY` |
+| `--category` | `general` | Tag all docs in this run with a category |
+| `--team` | `""` | Tag all docs with a team name |
+| `--no-replace` | *(off)* | Skip ingestion if source already exists |
+| `--dry-run` | *(off)* | Parse + chunk without calling the API |
+
+### Documents API reference
+
+All endpoints require the `X-Admin-Key: <ADMIN_API_KEY>` header.
+
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/api/v1/documents` | Ingest or replace a document by source name |
+| `DELETE` | `/api/v1/documents/{source}` | Delete all chunks for a source |
+| `GET` | `/api/v1/documents/search?q=…&top_k=5` | Test retrieval without going through chat |
+
+#### Ingest example
+
+```bash
+curl -X POST https://<backend-url>/api/v1/documents \
+  -H "X-Admin-Key: <ADMIN_API_KEY>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "source": "runbooks/deploy.md",
+    "content": "# Deploy Runbook\n\nSteps to deploy ...",
+    "metadata": {"team": "platform", "category": "runbooks"},
+    "replace_existing": true
+  }'
+```
+
+#### Search / smoke-test example
+
+```bash
+curl "https://<backend-url>/api/v1/documents/search?q=how+to+deploy&top_k=3" \
+  -H "X-Admin-Key: <ADMIN_API_KEY>"
+```
+
+---
 
 ### 5. Run locally
 
@@ -242,7 +375,7 @@ The system prompt is the single most impactful knob in a production AI assistant
 ### 7. Extensibility
 
 - **Tool calling / function calling** — extend the assistant with tools: run a `terraform validate` via Cloud Build triggered by the chat, query a Prometheus endpoint, or look up a JIRA ticket. Gemini supports function calling natively.
-- **RAG (Retrieval-Augmented Generation)** — index your internal runbooks, architecture decisions, and incident post-mortems into Vertex AI Vector Search or Cloud Firestore. Retrieve the top-k relevant docs and prepend them to the prompt. This makes the assistant aware of your specific systems.
+- **RAG (Retrieval-Augmented Generation)** — ✅ **Already implemented.** Internal runbooks, architecture decisions, and incident post-mortems are indexed as vector embeddings in Firestore (`knowledge_base` collection). Every chat request retrieves the top-5 relevant chunks via `find_nearest` (COSINE) and prepends them to the Gemini prompt. The frontend displays source badges per answer. Use `scripts/ingest.py` or the `/api/v1/documents` API to manage the knowledge base.
 - **Authentication** — the frontend is ready for an auth layer. Wire in Identity-Aware Proxy (IAP) for SSO with Google Workspace, or add a login route using NextAuth.js with a GCP OAuth provider.
 - **Feedback loop** — add 👍/👎 buttons per message. Store feedback in Firestore and use it to fine-tune the system prompt or build an evaluation dataset.
 

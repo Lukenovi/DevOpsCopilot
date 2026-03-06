@@ -1,9 +1,9 @@
 import structlog
 from fastapi import APIRouter, HTTPException, status
-from fastapi.responses import StreamingResponse
 
 from app.models.schemas import ChatRequest, ChatResponse, Message, MessageRole, SessionSummary
 from app.services.conversation import ConversationService
+from app.services.retrieval import RetrievalService
 from app.services.vertex_ai import VertexAIService
 
 logger = structlog.get_logger()
@@ -11,6 +11,7 @@ router = APIRouter(tags=["chat"])
 
 vertex_service = VertexAIService()
 conversation_service = ConversationService()
+retrieval_service = RetrievalService()
 
 
 @router.post("/chat", response_model=ChatResponse, status_code=status.HTTP_200_OK)
@@ -18,6 +19,7 @@ async def chat(request: ChatRequest) -> ChatResponse:
     """
     Send a message to the DevOps Copilot and receive an AI response.
     Conversation history is maintained per session_id.
+    Responses are grounded in internal knowledge when relevant chunks exist.
     """
     log = logger.bind(user_id=request.user_id, session_id=request.session_id)
 
@@ -29,10 +31,16 @@ async def chat(request: ChatRequest) -> ChatResponse:
         )
         log = log.bind(session_id=session_id)
 
-        # Build prompt with history context
+        # Retrieve relevant internal knowledge chunks
+        chunks = await retrieval_service.retrieve(request.message)
+        rag_context = retrieval_service.format_context(chunks) if chunks else None
+        sources = list({c["source"] for c in chunks}) if chunks else []
+
+        # Generate response, grounded in retrieved context
         response_text, token_count = await vertex_service.generate(
             user_message=request.message,
             history=history,
+            rag_context=rag_context,
         )
 
         # Persist both turns
@@ -45,11 +53,12 @@ async def chat(request: ChatRequest) -> ChatResponse:
             messages=[user_msg, assistant_msg],
         )
 
-        log.info("chat_response_sent", tokens=token_count)
+        log.info("chat_response_sent", tokens=token_count, sources=sources)
         return ChatResponse(
             session_id=session_id,
             message=assistant_msg,
             token_count=token_count,
+            sources=sources,
         )
 
     except Exception as exc:

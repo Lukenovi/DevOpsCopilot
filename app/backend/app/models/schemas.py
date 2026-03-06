@@ -33,6 +33,10 @@ class ChatResponse(BaseModel):
     session_id: str
     message: Message
     token_count: Optional[int] = None
+    sources: list[str] = Field(
+        default_factory=list,
+        description="Source document names used to ground this response.",
+    )
 
 
 class SessionSummary(BaseModel):
@@ -47,3 +51,38 @@ class HealthResponse(BaseModel):
     status: str
     version: str
     environment: str
+
+
+# ─── Knowledge Base / RAG schemas ────────────────────────────────────────────
+
+class IngestRequest(BaseModel):
+    """Ingest a text document into the knowledge base."""
+    source: str = Field(..., description="Unique document identifier (e.g. 'runbook-k8s.md').")
+    title: str = Field(..., description="Human-readable document title.")
+    content: str = Field(..., min_length=10, description="Full text content of the document.")
+    metadata: dict = Field(
+        default_factory=dict,
+        description="Optional tags: category, author, team, etc.",
+    )
+    replace: bool = Field(
+        default=True,
+        description="If True, delete existing chunks for this source before ingesting.",
+    )
+
+
+class IngestResponse(BaseModel):
+    source: str
+    chunks_written: int
+    message: str
+
+
+class DeleteSourceResponse(BaseModel):
+    source: str
+    chunks_deleted: int
+
+
+class KnowledgeChunk(BaseModel):
+    chunk_id: str
+    source: str
+    title: str
+    content: str

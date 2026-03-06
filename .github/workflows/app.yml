@@ -12,6 +12,8 @@
 #                       iam.serviceAccountUser, storage.objectViewer.
 #                       Paste the full contents of the key.json file.
 #
+# ── GitHub Variables (Settings → Secrets and variables → Actions → Variables) ─
+#
 #   GCP_PROJECT_ID    — GCP project ID  (e.g. my-devops-project-123)
 #
 #   GCP_REGION        — GCP region where Cloud Run services are deployed
@@ -24,10 +26,6 @@
 #   BACKEND_URL       — Full HTTPS URL of the Cloud Run backend service.
 #                       Get it from Terraform output: backend_url
 #                       (e.g. https://devops-copilot-backend-xxxx-ew.a.run.app)
-#
-# ── GitHub Variables (Settings → Secrets and variables → Actions → Variables) ─
-#
-#   (none required — all config is passed via secrets above)
 ###############################################################################
 
 name: "Application — Build & Deploy"
@@ -50,8 +48,8 @@ permissions:
   security-events: write  # For SARIF upload
 
 env:
-  GCP_REGION: ${{ secrets.GCP_REGION }}
-  REGISTRY: "${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ secrets.AR_REPOSITORY }}"
+  GCP_REGION: ${{ vars.GCP_REGION }}
+  REGISTRY: "${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.AR_REPOSITORY }}"
 
 jobs:
   # ─── Backend Build & Scan ───────────────────────────────────────────────────
@@ -137,7 +135,7 @@ jobs:
             ${{ env.REGISTRY }}/frontend:latest
             ${{ env.REGISTRY }}/frontend:${{ github.sha }}
           build-args: |
-            NEXT_PUBLIC_API_URL=${{ secrets.BACKEND_URL }}
+            NEXT_PUBLIC_API_URL=${{ vars.BACKEND_URL }}
           cache-from: type=registry,ref=${{ env.REGISTRY }}/frontend:buildcache
           cache-to: type=registry,ref=${{ env.REGISTRY }}/frontend:buildcache,mode=max
           provenance: true
@@ -184,7 +182,7 @@ jobs:
           gcloud run services update devops-copilot-backend \
             --region=${{ env.GCP_REGION }} \
             --image=${{ env.REGISTRY }}/backend:${{ github.sha }} \
-            --project=${{ secrets.GCP_PROJECT_ID }} \
+            --project=${{ vars.GCP_PROJECT_ID }} \
             --format="value(status.url)"
 
       - name: Deploy Frontend to Cloud Run
@@ -193,7 +191,7 @@ jobs:
           URL=$(gcloud run services update devops-copilot-frontend \
             --region=${{ env.GCP_REGION }} \
             --image=${{ env.REGISTRY }}/frontend:${{ github.sha }} \
-            --project=${{ secrets.GCP_PROJECT_ID }} \
+            --project=${{ vars.GCP_PROJECT_ID }} \
             --format="value(status.url)")
           echo "url=$URL" >> $GITHUB_OUTPUT
 
@@ -201,7 +199,7 @@ jobs:
         run: |
           BACKEND_URL=$(gcloud run services describe devops-copilot-backend \
             --region=${{ env.GCP_REGION }} \
-            --project=${{ secrets.GCP_PROJECT_ID }} \
+            --project=${{ vars.GCP_PROJECT_ID }} \
             --format="value(status.url)")
           STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$BACKEND_URL/health")
           echo "Health check status: $STATUS"
