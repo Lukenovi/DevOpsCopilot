@@ -18,7 +18,7 @@ COPY . .
 ARG NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 
-RUN npm run build
+RUN mkdir -p /app/public && npm run build
 
 # ─── Runner (minimal production image) ───────────────────────────────────────
 FROM base AS runner
