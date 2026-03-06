@@ -18,10 +18,11 @@ output "cloud_run_service_account" {
   value       = module.iam.cloud_run_sa_email
 }
 
-output "vpc_connector" {
-  description = "VPC Access Connector name for private networking."
-  value       = module.networking.vpc_connector_name
-}
+# TODO: re-enable when VPC networking is added back
+# output "vpc_connector" {
+#   description = "VPC Access Connector name for private networking."
+#   value       = module.networking.vpc_connector_name
+# }
 
 output "admin_api_key_secret" {
   description = "Secret Manager secret ID for the admin API key. Set its value with: gcloud secrets versions add <SECRET_ID> --data-file=-"

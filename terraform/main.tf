@@ -18,9 +18,10 @@ resource "google_project_service" "apis" {
     "secretmanager.googleapis.com",
     "cloudresourcemanager.googleapis.com",
     "iam.googleapis.com",
-    "compute.googleapis.com",
-    "vpcaccess.googleapis.com",
-    "servicenetworking.googleapis.com",
+    # TODO: re-enable when VPC networking is added back
+    # "compute.googleapis.com",
+    # "vpcaccess.googleapis.com",
+    # "servicenetworking.googleapis.com",
   ])
 
   project            = var.project_id
@@ -29,14 +30,16 @@ resource "google_project_service" "apis" {
 }
 
 # ─── Modules ─────────────────────────────────────────────────────────────────
-module "networking" {
-  source     = "./modules/networking"
-  project_id = var.project_id
-  region     = var.region
-  env        = var.env
 
-  depends_on = [google_project_service.apis]
-}
+# TODO: re-enable for production private networking
+# module "networking" {
+#   source     = "./modules/networking"
+#   project_id = var.project_id
+#   region     = var.region
+#   env        = var.env
+#
+#   depends_on = [google_project_service.apis]
+# }
 
 module "artifact_registry" {
   source     = "./modules/artifact_registry"
@@ -92,7 +95,8 @@ module "cloud_run_backend" {
   service_name          = "devops-copilot-backend"
   container_image       = "${var.region}-docker.pkg.dev/${var.project_id}/${module.artifact_registry.repository_name}/backend:latest"
   service_account_email = module.iam.cloud_run_sa_email
-  vpc_connector_name    = module.networking.vpc_connector_name
+  # TODO: re-enable when VPC networking is added back
+  # vpc_connector_name    = module.networking.vpc_connector_name
 
   env_vars = {
     ENVIRONMENT     = var.env
@@ -113,7 +117,7 @@ module "cloud_run_backend" {
   depends_on = [
     module.iam,
     module.artifact_registry,
-    module.networking,
+    # module.networking,  # TODO: re-enable when VPC networking is added back
     module.firestore,
     google_secret_manager_secret.admin_api_key,
   ]
@@ -128,7 +132,8 @@ module "cloud_run_frontend" {
   service_name          = "devops-copilot-frontend"
   container_image       = "${var.region}-docker.pkg.dev/${var.project_id}/${module.artifact_registry.repository_name}/frontend:latest"
   service_account_email = module.iam.cloud_run_sa_email
-  vpc_connector_name    = module.networking.vpc_connector_name
+  # TODO: re-enable when VPC networking is added back
+  # vpc_connector_name    = module.networking.vpc_connector_name
   allow_unauthenticated = true
 
   env_vars = {}
@@ -136,6 +141,6 @@ module "cloud_run_frontend" {
   depends_on = [
     module.iam,
     module.artifact_registry,
-    module.networking,
+    # module.networking,  # TODO: re-enable when VPC networking is added back
   ]
 }

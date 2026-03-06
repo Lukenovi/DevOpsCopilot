@@ -28,9 +28,15 @@ variable "service_account_email" {
   type        = string
 }
 
+# TODO: re-enable when VPC networking is added back
+# variable "vpc_connector_name" {
+#   description = "VPC Access Connector name."
+#   type        = string
+# }
 variable "vpc_connector_name" {
-  description = "VPC Access Connector name."
+  description = "VPC Access Connector name. Leave empty when VPC is disabled."
   type        = string
+  default     = ""
 }
 
 variable "allow_unauthenticated" {

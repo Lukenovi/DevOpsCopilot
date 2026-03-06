@@ -12,10 +12,11 @@ resource "google_cloud_run_v2_service" "service" {
       max_instance_count = var.max_instances
     }
 
-    vpc_access {
-      connector = "projects/${var.project_id}/locations/${var.region}/connectors/${var.vpc_connector_name}"
-      egress    = "ALL_TRAFFIC"
-    }
+    # TODO: re-enable for production private networking
+    # vpc_access {
+    #   connector = "projects/${var.project_id}/locations/${var.region}/connectors/${var.vpc_connector_name}"
+    #   egress    = "ALL_TRAFFIC"
+    # }
 
     containers {
       image = var.container_image
