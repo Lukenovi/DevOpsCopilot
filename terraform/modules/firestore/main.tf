@@ -44,16 +44,16 @@ resource "google_firestore_index" "knowledge_base_vector" {
   query_scope = "COLLECTION"
 
   fields {
+    field_path = "__name__"
+    order      = "ASCENDING"
+  }
+
+  fields {
     field_path = "embedding"
     vector_config {
       dimension = 768
       flat {}
     }
-  }
-
-  fields {
-    field_path = "__name__"
-    order      = "ASCENDING"
   }
 
   depends_on = [google_firestore_database.default]

@@ -88,7 +88,8 @@ module "cloud_run_backend" {
   env        = var.env
 
   service_name          = "devops-copilot-backend"
-  container_image       = "${var.region}-docker.pkg.dev/${var.project_id}/${module.artifact_registry.repository_name}/backend:latest"
+  # Placeholder used for initial creation only — app pipeline updates the image.
+  container_image       = "us-docker.pkg.dev/cloudrun/container/hello:latest"
   service_account_email = module.iam.cloud_run_sa_email
   # TODO: set to false and add IAP/auth when VPC networking is added back
   allow_unauthenticated = true
@@ -127,7 +128,8 @@ module "cloud_run_frontend" {
   env        = var.env
 
   service_name          = "devops-copilot-frontend"
-  container_image       = "${var.region}-docker.pkg.dev/${var.project_id}/${module.artifact_registry.repository_name}/frontend:latest"
+  # Placeholder used for initial creation only — app pipeline updates the image.
+  container_image       = "us-docker.pkg.dev/cloudrun/container/hello:latest"
   service_account_email = module.iam.cloud_run_sa_email
   # TODO: re-enable when VPC networking is added back
   # vpc_connector_name    = module.networking.vpc_connector_name
