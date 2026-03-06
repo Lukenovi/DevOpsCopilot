@@ -100,7 +100,7 @@ module "cloud_run_backend" {
     GCP_REGION      = var.region
     VERTEX_MODEL    = var.vertex_model
     FIRESTORE_DB    = "(default)"
-    FRONTEND_ORIGIN = module.cloud_run_frontend.service_url
+    FRONTEND_ORIGIN = var.frontend_origin
   }
 
   secret_env_vars = {
@@ -131,9 +131,7 @@ module "cloud_run_frontend" {
   vpc_connector_name    = module.networking.vpc_connector_name
   allow_unauthenticated = true
 
-  env_vars = {
-    NEXT_PUBLIC_API_URL = module.cloud_run_backend.service_url
-  }
+  env_vars = {}
 
   depends_on = [
     module.iam,

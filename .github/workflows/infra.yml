@@ -42,6 +42,7 @@ env:
   TF_VERSION: "1.7.5"
   TF_WORKING_DIR: "./terraform"
   TF_VAR_project_id: ${{ vars.GCP_PROJECT_ID }}
+  TF_VAR_frontend_origin: ${{ vars.FRONTEND_ORIGIN || '*' }}
 
 jobs:
   # ─── Terraform Plan ──────────────────────────────────────────────────────────

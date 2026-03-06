@@ -206,26 +206,23 @@ Go to **Repository → Settings → Secrets and variables → Actions → New re
 | `TF_STATE_BUCKET` | Name of your existing GCS bucket for Terraform state | Before first run |
 | `AR_REPOSITORY` | Artifact Registry repo ID — from Terraform output `artifact_registry_url` (e.g. `devops-copilot-prod`) | After first `terraform apply` |
 | `BACKEND_URL` | Full HTTPS URL of the Cloud Run backend — from Terraform output `backend_url` | After first `terraform apply` |
+| `FRONTEND_ORIGIN` | Full HTTPS URL of the Cloud Run frontend — from Terraform output `frontend_url`. Defaults to `*` if not set. Update after first deploy to lock down CORS. | After first `terraform apply` |
 
-> **Tip:** `AR_REPOSITORY` and `BACKEND_URL` are only known after the infra pipeline runs for the first time. Add the first three variables and the secret, trigger the infra pipeline, then fill in the remaining two variables.
+> **Tip:** `AR_REPOSITORY`, `BACKEND_URL`, and `FRONTEND_ORIGIN` are only known after the infra pipeline runs for the first time. Add the first three variables and the secret, trigger the infra pipeline, then fill in the remaining ones.
 
 > **Note:** `ADMIN_API_KEY` does **not** go into GitHub — it is stored directly in Secret Manager after `terraform apply` (see step 5 below).
 
 ### 3. Deploy infrastructure
 
-Trigger manually via GitHub Actions:
+Push a change to `terraform/` on `main`, or trigger manually via GitHub Actions:
 
 ```
-GitHub Actions → Infrastructure — Terraform → Run workflow → action: apply
+GitHub Actions → Infrastructure — Terraform → Run workflow → apply
 ```
 
 ### 4. Deploy the application
 
-Trigger manually via GitHub Actions:
-
-```
-GitHub Actions → Application — Build & Deploy → Run workflow
-```
+Push a change to `app/` on `main`, or trigger the app workflow manually.
 
 ---
 

@@ -40,7 +40,7 @@ resource "google_firestore_index" "knowledge_base_vector" {
   provider   = google-beta
   project    = var.project_id
   database   = google_firestore_database.default.name
-  collection = "knowledge_base"
+  collection  = "knowledge_base"
   query_scope = "COLLECTION"
 
   fields {

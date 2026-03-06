@@ -25,3 +25,9 @@ variable "vertex_model" {
   type        = string
   default     = "gemini-2.0-flash-001"
 }
+
+variable "frontend_origin" {
+  description = "Allowed CORS origin for the backend (the frontend Cloud Run URL). Set to '*' initially, update after first deploy."
+  type        = string
+  default     = "*"
+}
