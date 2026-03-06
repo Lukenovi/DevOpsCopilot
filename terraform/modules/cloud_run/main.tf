@@ -2,7 +2,10 @@ resource "google_cloud_run_v2_service" "service" {
   project  = var.project_id
   name     = var.service_name
   location = var.region
-  ingress  = var.allow_unauthenticated ? "INGRESS_TRAFFIC_ALL" : "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"
+  # When VPC connector is disabled (empty string), use ALL_TRAFFIC so services
+  # can reach each other over public endpoints. When VPC is enabled, restrict
+  # the backend to internal load balancer traffic only.
+  ingress = var.vpc_connector_name == "" ? "INGRESS_TRAFFIC_ALL" : (var.allow_unauthenticated ? "INGRESS_TRAFFIC_ALL" : "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER")
 
   template {
     service_account = var.service_account_email

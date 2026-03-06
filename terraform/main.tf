@@ -95,6 +95,8 @@ module "cloud_run_backend" {
   service_name          = "devops-copilot-backend"
   container_image       = "${var.region}-docker.pkg.dev/${var.project_id}/${module.artifact_registry.repository_name}/backend:latest"
   service_account_email = module.iam.cloud_run_sa_email
+  # TODO: set to false and add IAP/auth when VPC networking is added back
+  allow_unauthenticated = true
   # TODO: re-enable when VPC networking is added back
   # vpc_connector_name    = module.networking.vpc_connector_name
 
