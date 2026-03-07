@@ -117,7 +117,7 @@ function AppContent({ isDarkMode, setIsDarkMode }: { isDarkMode: boolean; setIsD
 
     try {
       const backendUrl = (import.meta as any).env?.VITE_BACKEND_URL || "";
-      const response = await fetch(`${backendUrl}/api/chat`, {
+      const response = await fetch(`${backendUrl}/api/v1/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
