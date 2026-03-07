@@ -143,7 +143,7 @@ class RetrievalService:
             return 0
 
         texts = [c["content"] for c in chunks]
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         embeddings = await loop.run_in_executor(
             None, lambda: self._embed(texts, task="RETRIEVAL_DOCUMENT")
         )
@@ -189,7 +189,7 @@ class RetrievalService:
         Each result dict contains: source, title, content, score.
         """
         # Run synchronous embedding in thread pool to avoid blocking event loop
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         query_vector = await loop.run_in_executor(None, self.embed_query, query)
 
         col = self._db.collection("knowledge_base")
