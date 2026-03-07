@@ -50,7 +50,14 @@ class RetrievalService:
     def __init__(self) -> None:
         vertexai.init(project=settings.gcp_project_id, location=settings.gcp_region)
         self._embed_model = TextEmbeddingModel.from_pretrained(EMBEDDING_MODEL)
+        # Async client — used for batch writes (ingest / delete)
         self._db: AsyncClient = firestore.AsyncClient(
+            project=settings.gcp_project_id,
+            database=settings.firestore_db,
+        )
+        # Sync client — used for vector search (AsyncVectorQuery.get() is not
+        # implemented in google-cloud-firestore 2.16; sync path is stable)
+        self._sync_db = firestore.Client(
             project=settings.gcp_project_id,
             database=settings.firestore_db,
         )
@@ -183,16 +190,14 @@ class RetrievalService:
 
     # ─── Retrieval ────────────────────────────────────────────────────────────
 
-    async def retrieve(self, query: str, top_k: int = TOP_K_RESULTS) -> list[dict]:
+    def _retrieve_sync(self, query: str, top_k: int) -> list[dict]:
         """
-        Embed the query and return the top-k most relevant knowledge chunks.
-        Each result dict contains: source, title, content, score.
+        Synchronous retrieval — embed query then run Firestore vector search.
+        Runs in a thread pool via asyncio.to_thread to avoid blocking the loop.
         """
-        # Run synchronous embedding in thread pool to avoid blocking event loop
-        loop = asyncio.get_running_loop()
-        query_vector = await loop.run_in_executor(None, self.embed_query, query)
+        query_vector = self.embed_query(query)
 
-        col = self._db.collection("knowledge_base")
+        col = self._sync_db.collection("knowledge_base")
         vector_query = col.find_nearest(
             vector_field="embedding",
             query_vector=Vector(query_vector),
@@ -200,7 +205,7 @@ class RetrievalService:
             limit=top_k,
         )
 
-        docs = await vector_query.get()
+        docs = vector_query.get()
         results = []
         for doc in docs:
             data = doc.to_dict()
@@ -215,6 +220,13 @@ class RetrievalService:
 
         logger.info("retrieval_complete", query_len=len(query), results=len(results))
         return results
+
+    async def retrieve(self, query: str, top_k: int = TOP_K_RESULTS) -> list[dict]:
+        """
+        Embed the query and return the top-k most relevant knowledge chunks.
+        Each result dict contains: source, title, content, score.
+        """
+        return await asyncio.to_thread(self._retrieve_sync, query, top_k)
 
     @staticmethod
     def format_context(chunks: list[dict]) -> str:
