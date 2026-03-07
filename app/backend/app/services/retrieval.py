@@ -18,6 +18,7 @@ Data model — Firestore collection: knowledge_base
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import re
 from datetime import datetime, timezone
@@ -142,7 +143,10 @@ class RetrievalService:
             return 0
 
         texts = [c["content"] for c in chunks]
-        embeddings = self._embed(texts, task="RETRIEVAL_DOCUMENT")
+        loop = asyncio.get_event_loop()
+        embeddings = await loop.run_in_executor(
+            None, lambda: self._embed(texts, task="RETRIEVAL_DOCUMENT")
+        )
 
         batch = self._db.batch()
         col = self._db.collection("knowledge_base")
@@ -184,7 +188,9 @@ class RetrievalService:
         Embed the query and return the top-k most relevant knowledge chunks.
         Each result dict contains: source, title, content, score.
         """
-        query_vector = self.embed_query(query)
+        # Run synchronous embedding in thread pool to avoid blocking event loop
+        loop = asyncio.get_event_loop()
+        query_vector = await loop.run_in_executor(None, self.embed_query, query)
 
         col = self._db.collection("knowledge_base")
         vector_query = col.find_nearest(

@@ -62,7 +62,7 @@ async def chat(request: ChatRequest) -> ChatResponse:
         )
 
     except Exception as exc:
-        log.error("chat_error", error=str(exc))
+        log.error("chat_error", error=repr(exc), error_type=type(exc).__name__)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred while processing your request.",
