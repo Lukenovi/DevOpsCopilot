@@ -27,7 +27,7 @@ import {
   theme as lightTheme,
   darkTheme,
 } from "@skodaflow/web-library";
-import { useTheme, useMediaQuery } from "@mui/material";
+import { useTheme, useMediaQuery, Dialog, DialogTitle, DialogContent, DialogActions } from "@mui/material";
 import { createTheme } from "@mui/material/styles";
 import {
   MessageSquare,
@@ -43,6 +43,8 @@ import {
   ShieldCheck,
   ChevronRight,
   Code,
+  X,
+  Cloud,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 
@@ -58,6 +60,220 @@ type Message = {
 
 type ViewState = "chat" | "guides" | "status" | "settings";
 
+type Guide = {
+  title: string;
+  desc: string;
+  icon: React.ReactNode;
+  content: string;
+};
+
+const GUIDES: Guide[] = [
+  {
+    title: "Azure DevOps Access",
+    desc: "Request a DMZ account to access the Skoda Azure DevOps environment.",
+    icon: <Cloud size={24} />,
+    content: `# Azure DevOps Access in Skoda
+
+## Overview
+To get access to Azure DevOps in Skoda, you need a **DMZ account**. This is required because Azure DevOps is accessed through the DMZ (demilitarized zone) network segment.
+
+## Steps
+
+1. Fill in form **UMS 9003** to request a DMZ account creation.
+2. Submit the form through the standard IT request process.
+3. Wait for IT to provision your DMZ account (typically 1–3 business days).
+4. Once your DMZ account is created, use it to authenticate against Azure DevOps.
+
+## Notes
+- Without a DMZ account created via UMS 9003, you will **not** be able to log in to Azure DevOps.
+- If you already have a DMZ account from a previous project, you can reuse it.
+- For questions about the form or the process, contact the **IT Service Desk**.
+`,
+  },
+  {
+    title: "Kubernetes Basics",
+    desc: "Deploy your first app to the Skoda K8s cluster.",
+    icon: <Server size={24} />,
+    content: `# Kubernetes Basics — Skoda On-Prem Cluster
+
+## Overview
+Skoda runs an on-premises Kubernetes cluster managed by the Platform Engineering team. All production workloads must be deployed via GitOps using ArgoCD.
+
+## Pre-requisites
+- VPN access to the Skoda internal network
+- \`kubectl\` installed locally
+- Kubeconfig file obtained from the Platform team (raise a ticket in ServiceNow)
+
+## Namespaces
+Every team gets a dedicated namespace. Naming convention: \`<team>-<env>\` (e.g. \`payments-prod\`).
+
+## Deploying an App
+
+1. Create a Helm chart in your GitLab repo under \`/helm/\`.
+2. Add an ArgoCD \`Application\` manifest pointing to your chart.
+3. Merge to \`main\` — ArgoCD will automatically sync.
+
+\`\`\`yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: my-app
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://gitlab.skoda-auto.com/my-team/my-app
+    path: helm
+    targetRevision: HEAD
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: my-team-prod
+\`\`\`
+
+## Resource Limits
+All containers **must** define resource requests and limits. Requests without limits will be rejected by the admission controller.
+
+## Getting Help
+Join the \`#platform-k8s\` Slack channel or open a ServiceNow ticket under *Platform Engineering*.
+`,
+  },
+  {
+    title: "GitLab CI/CD",
+    desc: "Standard templates and best practices for pipelines.",
+    icon: <Code size={24} />,
+    content: `# GitLab CI/CD at Skoda
+
+## Overview
+All code pipelines run on Skoda's self-hosted GitLab instance. Use the shared CI templates maintained by the Platform team to stay compliant with security and quality gates.
+
+## Using the Shared Templates
+
+Include the central template in your \`.gitlab-ci.yml\`:
+
+\`\`\`yaml
+include:
+  - project: 'platform/ci-templates'
+    ref: main
+    file: '/templates/standard-pipeline.yml'
+\`\`\`
+
+## Standard Pipeline Stages
+
+| Stage | Description |
+|---|---|
+| \`build\` | Compile / build Docker image |
+| \`test\` | Unit tests + coverage report |
+| \`sast\` | SonarQube static analysis (mandatory) |
+| \`publish\` | Push image to Nexus |
+| \`deploy\` | Trigger ArgoCD sync via API |
+
+## Branch Strategy
+- \`feature/*\` → runs build + test only
+- \`main\` → runs full pipeline including deploy to non-prod
+- Tags (\`v*\`) → deploy to production
+
+## Secrets Management
+Never hardcode secrets. Use **GitLab CI Variables** (Settings → CI/CD → Variables) or mount Vault secrets at runtime.
+
+## Getting Help
+Contact the Platform team in \`#cicd-support\` on Slack.
+`,
+  },
+  {
+    title: "Security & SonarQube",
+    desc: "Integrating SAST and DAST into your workflow.",
+    icon: <ShieldCheck size={24} />,
+    content: `# Security & SonarQube at Skoda
+
+## Overview
+All code merged to \`main\` must pass a SonarQube quality gate. DAST scans are required before any production release.
+
+## SonarQube (SAST)
+
+### Access
+- URL: \`https://sonarqube.skoda-auto.com\`
+- Log in with your standard Skoda AD credentials.
+
+### Quality Gate Requirements
+- 0 blocker issues
+- 0 critical vulnerabilities
+- Code coverage ≥ 80%
+- Duplicated lines ≤ 3%
+
+### Adding to Your Pipeline
+The shared GitLab template already includes the SonarQube stage. Pass your project key:
+
+\`\`\`yaml
+variables:
+  SONAR_PROJECT_KEY: "my-team_my-app"
+\`\`\`
+
+## DAST
+Dynamic scanning is done using OWASP ZAP, integrated in the \`dast\` pipeline stage. It runs against the staging environment URL before production promotion.
+
+## Secrets Scanning
+GitLab's built-in secret detection is enabled on all repos. Any detected credential will block the merge request.
+
+## Getting Help
+Security questions → \`#security-guild\` on Slack or contact the AppSec team.
+`,
+  },
+  {
+    title: "Nexus Artifacts",
+    desc: "Publishing and consuming packages internally.",
+    icon: <Terminal size={24} />,
+    content: `# Nexus Repository at Skoda
+
+## Overview
+Skoda uses a self-hosted **Nexus Repository Manager** for storing Docker images, Maven artifacts, npm packages, and Helm charts.
+
+## Access
+- URL: \`https://nexus.skoda-auto.com\`
+- Log in with your Skoda AD credentials.
+- Request write access via ServiceNow ticket: *"Nexus Publish Access"*.
+
+## Docker Images
+
+### Pulling
+\`\`\`bash
+docker login nexus.skoda-auto.com
+docker pull nexus.skoda-auto.com/skoda/<image>:<tag>
+\`\`\`
+
+### Pushing (via CI)
+The shared GitLab template handles this automatically in the \`publish\` stage. Your image will be tagged with the Git commit SHA and pushed to your team's repository.
+
+## npm Packages
+
+Add to your \`.npmrc\`:
+\`\`\`
+registry=https://nexus.skoda-auto.com/repository/npm-proxy/
+\`\`\`
+
+## Maven / Gradle
+
+Add the Nexus mirror to your \`settings.xml\`:
+\`\`\`xml
+<mirror>
+  <id>nexus</id>
+  <mirrorOf>*</mirrorOf>
+  <url>https://nexus.skoda-auto.com/repository/maven-public/</url>
+</mirror>
+\`\`\`
+
+## Helm Charts
+Charts are stored under \`helm-hosted\`. Push via the CI template or manually:
+\`\`\`bash
+curl -u user:pass https://nexus.skoda-auto.com/repository/helm-hosted/ \\
+  --upload-file my-chart-1.0.0.tgz
+\`\`\`
+
+## Getting Help
+Join \`#nexus-support\` on Slack.
+`,
+  },
+];
+
 function AppContent({ isDarkMode, setIsDarkMode }: { isDarkMode: boolean; setIsDarkMode: (value: boolean) => void }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [view, setView] = useState<ViewState>("chat");
@@ -70,6 +286,7 @@ function AppContent({ isDarkMode, setIsDarkMode }: { isDarkMode: boolean; setIsD
   ]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [selectedGuide, setSelectedGuide] = useState<Guide | null>(null);
   const sessionIdRef = useRef<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const theme = useTheme();
@@ -513,32 +730,18 @@ function AppContent({ isDarkMode, setIsDarkMode }: { isDarkMode: boolean; setIsD
           gap: 3,
         }}
       >
-        {[
-          {
-            title: "Kubernetes Basics",
-            desc: "Learn how to deploy your first app to the Skoda K8s cluster.",
-            icon: <Server />,
-          },
-          {
-            title: "GitLab CI/CD",
-            desc: "Standard templates and best practices for pipelines.",
-            icon: <Code />,
-          },
-          {
-            title: "Security & SonarQube",
-            desc: "Integrating SAST and DAST into your workflow.",
-            icon: <ShieldCheck />,
-          },
-          {
-            title: "Nexus Artifacts",
-            desc: "Publishing and consuming packages internally.",
-            icon: <Terminal />,
-          },
-        ].map((guide, i) => (
+        {GUIDES.map((guide, i) => (
           <Card
             key={i}
             variant="outlined"
-            sx={{ height: "100%", display: "flex", flexDirection: "column" }}
+            sx={{
+              height: "100%",
+              display: "flex",
+              flexDirection: "column",
+              cursor: "pointer",
+              transition: "box-shadow 0.2s, border-color 0.2s",
+              "&:hover": { boxShadow: 4, borderColor: primaryColor },
+            }}
           >
             <CardContent sx={{ flexGrow: 1 }}>
               <Box
@@ -564,13 +767,116 @@ function AppContent({ isDarkMode, setIsDarkMode }: { isDarkMode: boolean; setIsD
               </Typography>
             </CardContent>
             <Box sx={{ p: 2, pt: 0 }}>
-              <Button variant="text" endIcon={<ChevronRight size={16} />}>
+              <Button
+                variant="text"
+                endIcon={<ChevronRight size={16} />}
+                onClick={() => setSelectedGuide(guide)}
+                sx={{ color: primaryColor }}
+              >
                 Read Guide
               </Button>
             </Box>
           </Card>
         ))}
       </Box>
+
+      {/* ── Guide Article Dialog ── */}
+      <Dialog
+        open={!!selectedGuide}
+        onClose={() => setSelectedGuide(null)}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: 3, bgcolor: "background.paper" } }}
+      >
+        <DialogTitle
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            borderBottom: "1px solid",
+            borderColor: "divider",
+            pb: 2,
+          }}
+        >
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+            <Box
+              sx={{
+                width: 36,
+                height: 36,
+                borderRadius: 2,
+                bgcolor: translucentPrimary,
+                color: primaryColor,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              {selectedGuide?.icon}
+            </Box>
+            <Typography variant="h6" fontWeight={600}>
+              {selectedGuide?.title}
+            </Typography>
+          </Box>
+          <IconButton onClick={() => setSelectedGuide(null)} size="small">
+            <X size={20} />
+          </IconButton>
+        </DialogTitle>
+
+        <DialogContent sx={{ pt: 3 }}>
+          <Box
+            sx={{
+              "& h1": { typography: "h5", fontWeight: 700, mb: 2, mt: 1 },
+              "& h2": { typography: "h6", fontWeight: 600, mb: 1.5, mt: 3, color: primaryColor },
+              "& h3": { typography: "subtitle1", fontWeight: 600, mb: 1, mt: 2 },
+              "& p": { mb: 1.5, lineHeight: 1.8 },
+              "& ul, & ol": { pl: 3, mb: 1.5 },
+              "& li": { mb: 0.5 },
+              "& table": { width: "100%", borderCollapse: "collapse", mb: 2 },
+              "& th": { bgcolor: translucentPrimary, p: 1, textAlign: "left", fontWeight: 600, border: "1px solid", borderColor: "divider" },
+              "& td": { p: 1, border: "1px solid", borderColor: "divider" },
+              "& pre": {
+                bgcolor: isDarkMode ? "#0d1117" : "#f6f8fa",
+                color: isDarkMode ? "#e6edf3" : "#24292f",
+                p: 2,
+                borderRadius: 2,
+                overflowX: "auto",
+                my: 2,
+                fontSize: "0.85rem",
+                lineHeight: 1.6,
+                border: isDarkMode ? "none" : "1px solid #d0d7de",
+              },
+              "& code": {
+                fontFamily: "'Fira Code', 'Consolas', monospace",
+                bgcolor: isDarkMode ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)",
+                color: isDarkMode ? "#79c0ff" : "#d63200",
+                px: 0.7,
+                py: 0.3,
+                borderRadius: 1,
+                fontSize: "0.85em",
+              },
+              "& pre code": {
+                bgcolor: "transparent",
+                color: isDarkMode ? "#e6edf3" : "#24292f",
+                p: 0,
+                fontSize: "inherit",
+              },
+              "& strong": { fontWeight: 700 },
+            }}
+          >
+            <ReactMarkdown>{selectedGuide?.content ?? ""}</ReactMarkdown>
+          </Box>
+        </DialogContent>
+
+        <DialogActions sx={{ borderTop: "1px solid", borderColor: "divider", px: 3, py: 2 }}>
+          <Button
+            variant="contained"
+            onClick={() => setSelectedGuide(null)}
+            sx={{ bgcolor: primaryColor, color: primaryTextColor, "&:hover": { opacity: 0.9 } }}
+          >
+            Close
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 
