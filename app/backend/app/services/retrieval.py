@@ -239,3 +239,13 @@ class RetrievalService:
             lines.append(chunk["content"])
             lines.append("")
         return "\n".join(lines)
+
+    def _get_source_chunks_sync(self, source: str) -> list[dict]:
+        """Fetch all chunks for a source ordered by chunk_index (sync, runs in thread)."""
+        col = self._sync_db.collection("knowledge_base")
+        docs = col.where("source", "==", source).order_by("chunk_index").get()
+        return [doc.to_dict() for doc in docs]
+
+    async def get_chunks_by_source(self, source: str) -> list[dict]:
+        """Return all stored chunks for a given source, ordered by chunk_index."""
+        return await asyncio.to_thread(self._get_source_chunks_sync, source)

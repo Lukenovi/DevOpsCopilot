@@ -12,6 +12,7 @@ from fastapi import APIRouter, Header, HTTPException, status
 from app.config import settings
 from app.models.schemas import (
     DeleteSourceResponse,
+    DocumentContentResponse,
     IngestRequest,
     IngestResponse,
     KnowledgeChunk,
@@ -100,3 +101,27 @@ async def search_knowledge(
     _check_admin_key(x_admin_key)
     chunks = await retrieval_service.retrieve(q, top_k=top_k)
     return [KnowledgeChunk(**c) for c in chunks]
+
+
+@router.get(
+    "/documents/{source:path}",
+    response_model=DocumentContentResponse,
+)
+async def get_document(source: str) -> DocumentContentResponse:
+    """
+    Fetch the full content of a knowledge document by its source ID.
+    Chunks are reassembled in order. No auth required (read-only public content).
+    """
+    chunks = await retrieval_service.get_chunks_by_source(source)
+    if not chunks:
+        raise HTTPException(status_code=404, detail=f"No document found for source '{source}'.")
+
+    title = chunks[0].get("title", source)
+    full_content = "\n\n".join(c.get("content", "") for c in chunks)
+
+    return DocumentContentResponse(
+        source=source,
+        title=title,
+        content=full_content,
+        chunk_count=len(chunks),
+    )

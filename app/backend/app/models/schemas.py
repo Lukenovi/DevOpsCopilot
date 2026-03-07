@@ -86,3 +86,10 @@ class KnowledgeChunk(BaseModel):
     source: str
     title: str
     content: str
+
+
+class DocumentContentResponse(BaseModel):
+    source: str
+    title: str
+    content: str  # full reassembled markdown
+    chunk_count: int
