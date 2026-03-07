@@ -87,7 +87,8 @@ function AppContent({ isDarkMode, setIsDarkMode }: { isDarkMode: boolean; setIsD
   const modelBubbleBg = isDarkMode ? "background.paper" : "white";
   const bubbleBorder = isDarkMode ? "divider" : "grey.200";
   const inputBg = isDarkMode ? "background.paper" : "grey.50";
-  const codeBg = isDarkMode ? "rgba(0, 0, 0, 0.2)" : "grey.900";
+  const codeBg = isDarkMode ? "#0d1117" : "#f6f8fa";       // github dark / github light
+  const codeColor = isDarkMode ? "#e6edf3" : "#24292f";    // light text / dark text
   const appBarBg = isDarkMode ? "background.paper" : "white";
 
   const handleDrawerToggle = () => {
@@ -375,24 +376,29 @@ function AppContent({ isDarkMode, setIsDarkMode }: { isDarkMode: boolean; setIsD
                   "& p": { m: 0, mb: 1, "&:last-child": { mb: 0 } },
                   "& pre": {
                     bgcolor: codeBg,
-                    color: "grey.100",
+                    color: codeColor,
                     p: 2,
                     borderRadius: 2,
                     overflowX: "auto",
                     my: 2,
+                    fontSize: "0.85rem",
+                    lineHeight: 1.6,
+                    border: isDarkMode ? "none" : "1px solid #d0d7de",
                   },
                   "& code": {
-                    fontFamily: "monospace",
-                    bgcolor: userBubbleBg,
-                    px: 0.5,
-                    py: 0.2,
+                    fontFamily: "'Fira Code', 'Consolas', 'Monaco', monospace",
+                    bgcolor: isDarkMode ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)",
+                    color: isDarkMode ? "#79c0ff" : "#d63200",
+                    px: 0.7,
+                    py: 0.3,
                     borderRadius: 1,
-                    color: "error.main",
+                    fontSize: "0.85em",
                   },
                   "& pre code": {
                     bgcolor: "transparent",
-                    color: "inherit",
+                    color: codeColor,
                     p: 0,
+                    fontSize: "inherit",
                   },
                 }}
               >
