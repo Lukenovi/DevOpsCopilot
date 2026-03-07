@@ -125,7 +125,7 @@ jobs:
             ${{ env.REGISTRY }}/frontend:latest
             ${{ env.REGISTRY }}/frontend:${{ github.sha }}
           build-args: |
-            NEXT_PUBLIC_API_URL=${{ vars.BACKEND_URL }}
+            VITE_BACKEND_URL=${{ vars.BACKEND_URL }}
           cache-from: type=registry,ref=${{ env.REGISTRY }}/frontend:buildcache
           cache-to: type=registry,ref=${{ env.REGISTRY }}/frontend:buildcache,mode=max
           provenance: true
