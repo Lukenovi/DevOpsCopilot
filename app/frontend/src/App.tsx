@@ -646,7 +646,7 @@ function AppContent({ isDarkMode, setIsDarkMode }: { isDarkMode: boolean; setIsD
             pb: 2,
           }}
         >
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, minWidth: 0, flex: 1, mr: 1 }}>
             <Box
               sx={{
                 width: 36,
@@ -657,11 +657,12 @@ function AppContent({ isDarkMode, setIsDarkMode }: { isDarkMode: boolean; setIsD
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
+                flexShrink: 0,
               }}
             >
               {selectedGuide?.icon}
             </Box>
-            <Typography variant="h6" fontWeight={600}>
+            <Typography variant="h6" fontWeight={600} noWrap sx={{ minWidth: 0 }}>
               {selectedGuide?.title}
             </Typography>
           </Box>
@@ -839,6 +840,7 @@ function AppContent({ isDarkMode, setIsDarkMode }: { isDarkMode: boolean; setIsD
     <Box sx={{ display: "flex", height: "100vh", bgcolor: chatBg }}>
       <AppBar
         position="fixed"
+        color="inherit"
         elevation={0}
         sx={{
           width: { md: `calc(100% - ${drawerWidth}px)` },
@@ -846,10 +848,9 @@ function AppContent({ isDarkMode, setIsDarkMode }: { isDarkMode: boolean; setIsD
           bgcolor: appBarBg,
           borderBottom: "1px solid",
           borderColor: "divider",
-          color: "text.primary",
         }}
       >
-        <Toolbar>
+        <Toolbar sx={{ minHeight: 64, height: 64 }}>
           <IconButton
             color="inherit"
             aria-label="open drawer"
@@ -938,6 +939,27 @@ function AppContent({ isDarkMode, setIsDarkMode }: { isDarkMode: boolean; setIsD
 export default function App() {
   const [isDarkMode, setIsDarkMode] = useState(false);
 
+  const toolbarHeightOverride = {
+    MuiToolbar: {
+      styleOverrides: {
+        root: {
+          minHeight: "64px !important",
+          height: 64,
+          "@media (min-width: 0px)": { minHeight: "64px !important" },
+          "@media (min-width: 600px)": { minHeight: "64px !important" },
+        },
+      },
+    },
+  };
+
+  const customLightTheme = createTheme({
+    ...lightTheme,
+    components: {
+      ...lightTheme.components,
+      ...toolbarHeightOverride,
+    },
+  });
+
   const customDarkTheme = createTheme({
     ...darkTheme,
     palette: {
@@ -965,6 +987,7 @@ export default function App() {
     },
     components: {
       ...darkTheme.components,
+      ...toolbarHeightOverride,
       MuiPaper: {
         styleOverrides: {
           root: { backgroundImage: "none" },
@@ -972,7 +995,7 @@ export default function App() {
       },
       MuiAppBar: {
         styleOverrides: {
-          root: { backgroundColor: EMERALD_GREEN, backgroundImage: "none" },
+          root: { backgroundImage: "none" },
         },
       },
       MuiDrawer: {
@@ -983,7 +1006,7 @@ export default function App() {
     },
   });
 
-  const currentTheme = isDarkMode ? customDarkTheme : lightTheme;
+  const currentTheme = isDarkMode ? customDarkTheme : customLightTheme;
 
   return (
     <ThemeProvider theme={currentTheme}>
