@@ -637,16 +637,18 @@ function AppContent({ isDarkMode, setIsDarkMode }: { isDarkMode: boolean; setIsD
         PaperProps={{ sx: { borderRadius: 3, bgcolor: "background.paper" } }}
       >
         <DialogTitle
+          component="div"
           sx={{
             display: "flex",
-            alignItems: "center",
+            alignItems: "flex-start",
             justifyContent: "space-between",
             borderBottom: "1px solid",
             borderColor: "divider",
-            pb: 2,
+            p: 2.5,
+            gap: 1.5,
           }}
         >
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, minWidth: 0, flex: 1, mr: 1 }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flex: 1, minWidth: 0 }}>
             <Box
               sx={{
                 width: 36,
@@ -662,11 +664,15 @@ function AppContent({ isDarkMode, setIsDarkMode }: { isDarkMode: boolean; setIsD
             >
               {selectedGuide?.icon}
             </Box>
-            <Typography variant="h6" fontWeight={600} noWrap sx={{ minWidth: 0 }}>
+            <Typography variant="h6" fontWeight={600} sx={{ lineHeight: 1.3, wordBreak: "break-word" }}>
               {selectedGuide?.title}
             </Typography>
           </Box>
-          <IconButton onClick={() => { setSelectedGuide(null); setGuideContent(""); }} size="small">
+          <IconButton
+            onClick={() => { setSelectedGuide(null); setGuideContent(""); }}
+            size="small"
+            sx={{ flexShrink: 0, mt: 0.25 }}
+          >
             <X size={20} />
           </IconButton>
         </DialogTitle>
