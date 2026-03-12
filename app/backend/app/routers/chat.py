@@ -2,6 +2,7 @@ import structlog
 from fastapi import APIRouter, HTTPException, status
 
 from app.models.schemas import ChatRequest, ChatResponse, Message, MessageRole, SessionSummary
+from app.routers.terraform import parse_terraform_plan, isTerraformPlan
 from app.services.conversation import ConversationService
 from app.services.retrieval import RetrievalService
 from app.services.vertex_ai import VertexAIService
@@ -31,14 +32,41 @@ async def chat(request: ChatRequest) -> ChatResponse:
         )
         log = log.bind(session_id=session_id)
 
+        # If the user pasted a terraform plan, condense it for the LLM instead
+        # of sending the full raw noisy CLI output (hundreds of diff lines).
+        effective_message = request.message
+        if isTerraformPlan(request.message):
+            parsed = parse_terraform_plan(request.message)
+            s = parsed["summary"]
+            lines = [
+                f"Please review this Terraform plan: "
+                f"{s['add']} resource(s) to add, {s['change']} to change, {s['destroy']} to destroy. "
+                f"{parsed['total_changes']} total changes.",
+                "",
+                "Resource breakdown:",
+            ]
+            for r in parsed["resources"]:
+                risk_str = f"  ← {', '.join(r['risks'])}" if r["risks"] else ""
+                lines.append(f"  [{r['action'].upper()}] {r['address']}{risk_str}")
+            lines += [
+                "",
+                "Flag any risky changes (destructive, IAM, data resources), explain the impact "
+                "of each, and suggest any best-practice improvements.",
+            ]
+            effective_message = "\n".join(lines)
+            logger.info("tf_plan_condensed",
+                        original_len=len(request.message),
+                        condensed_len=len(effective_message),
+                        resources=parsed["total_changes"])
+
         # Retrieve relevant internal knowledge chunks
-        chunks = await retrieval_service.retrieve(request.message)
+        chunks = await retrieval_service.retrieve(effective_message)
         rag_context = retrieval_service.format_context(chunks) if chunks else None
         sources = list({c["source"] for c in chunks}) if chunks else []
 
         # Generate response, grounded in retrieved context
         response_text, token_count = await vertex_service.generate(
-            user_message=request.message,
+            user_message=effective_message,
             history=history,
             rag_context=rag_context,
         )

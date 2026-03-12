@@ -670,56 +670,81 @@ function AppContent({ isDarkMode, setIsDarkMode }: { isDarkMode: boolean; setIsD
           }}
           sx={{
             display: "flex",
-            gap: 2,
-            alignItems: "flex-end",
+            flexDirection: "column",
+            gap: 1,
             maxWidth: "100%",
           }}
         >
-          <TextField
-            fullWidth
-            multiline
-            maxRows={4}
-            placeholder="Ask Copilot about DevOps..."
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                handleSend(input);
-              }
-            }}
-            variant="outlined"
-            sx={{
-              "& .MuiOutlinedInput-root": {
+          {isTerraformPlan(input) && (
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+              <Chip
+                label="⚡ Terraform plan detected — will visualise + review"
+                size="small"
+                sx={{
+                  bgcolor: isDarkMode ? "rgba(120,250,174,0.12)" : "rgba(14,58,47,0.08)",
+                  color: primaryColor,
+                  fontWeight: 600,
+                  fontSize: "0.72rem",
+                  border: `1px solid ${isDarkMode ? "rgba(120,250,174,0.3)" : "rgba(14,58,47,0.2)"}`,
+                }}
+              />
+              <Typography variant="caption" color="text.secondary">
+                Press Enter to send
+              </Typography>
+            </Box>
+          )}
+          <Box sx={{ display: "flex", gap: 2, alignItems: "flex-end" }}>
+            <TextField
+              fullWidth
+              multiline
+              minRows={1}
+              maxRows={isTerraformPlan(input) ? 14 : 4}
+              placeholder="Ask Copilot about DevOps, or paste a terraform plan…"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSend(input);
+                }
+              }}
+              variant="outlined"
+              sx={{
+                "& .MuiOutlinedInput-root": {
+                  borderRadius: 3,
+                  bgcolor: inputBg,
+                  ...(isTerraformPlan(input) && {
+                    borderColor: primaryColor,
+                    "& fieldset": { borderColor: `${primaryColor} !important` },
+                  }),
+                },
+              }}
+            />
+            <Button
+              variant="contained"
+              type="submit"
+              disabled={!input.trim() || isLoading}
+              sx={{
+                minWidth: 56,
+                width: 56,
+                height: 56,
                 borderRadius: 3,
-                bgcolor: inputBg,
-              },
-            }}
-          />
-          <Button
-            variant="contained"
-            type="submit"
-            disabled={!input.trim() || isLoading}
-            sx={{
-              minWidth: 56,
-              width: 56,
-              height: 56,
-              borderRadius: 3,
-              p: 0,
-              bgcolor: primaryColor,
-              color: primaryTextColor,
-              "&:hover": {
-                bgcolor: primaryHoverColor,
-                color: isDarkMode ? "white" : "black",
-              },
-              "&.Mui-disabled": {
-                bgcolor: isDarkMode ? "action.disabledBackground" : "grey.300",
-                color: isDarkMode ? "action.disabled" : "grey.500",
-              },
-            }}
-          >
-            <Send size={20} />
-          </Button>
+                p: 0,
+                bgcolor: primaryColor,
+                color: primaryTextColor,
+                "&:hover": {
+                  bgcolor: primaryHoverColor,
+                  color: isDarkMode ? "white" : "black",
+                },
+                "&.Mui-disabled": {
+                  bgcolor: isDarkMode ? "action.disabledBackground" : "grey.300",
+                  color: isDarkMode ? "action.disabled" : "grey.500",
+                },
+              }}
+            >
+              <Send size={20} />
+            </Button>
+          </Box>
         </Box>
       </Box>
     </Box>

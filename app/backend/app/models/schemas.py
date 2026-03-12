@@ -22,7 +22,7 @@ class ChatRequest(BaseModel):
         default=None,
         description="Existing session ID. If omitted, a new session is created.",
     )
-    message: str = Field(..., min_length=1, max_length=4000, description="User message.")
+    message: str = Field(..., min_length=1, max_length=60000, description="User message. Accepts large inputs such as terraform plan output.")
     user_id: Optional[str] = Field(
         default="anonymous",
         description="Optional user identifier for conversation scoping.",

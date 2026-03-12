@@ -60,6 +60,17 @@ def _parse_address(address: str) -> tuple[str, str]:
     return address, address
 
 
+def isTerraformPlan(text: str) -> bool:
+    """Return True if the text looks like terraform plan output."""
+    return bool(
+        re.search(r"Plan:\s+\d+ to add,\s+\d+ to change,\s+\d+ to destroy", text, re.IGNORECASE)
+        or (
+            re.search(r"Terraform will perform the following actions", text, re.IGNORECASE)
+            and re.search(r"will be (created|destroyed|updated|replaced)", text, re.IGNORECASE)
+        )
+    )
+
+
 def parse_terraform_plan(plan_text: str) -> dict:
     """Parse raw terraform plan output; returns summary + resource list."""
     seen: set[str] = set()
