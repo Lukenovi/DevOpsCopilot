@@ -130,6 +130,11 @@ function isTerraformPlan(text: string): boolean {
   );
 }
 
+function extractPlanSummary(text: string): { add: number; change: number; destroy: number } | null {
+  const m = text.match(/Plan:\s+(\d+)\s+to add,\s+(\d+)\s+to change,\s+(\d+)\s+to destroy/i);
+  return m ? { add: parseInt(m[1]), change: parseInt(m[2]), destroy: parseInt(m[3]) } : null;
+}
+
 function TerraformPlanCard({ data, isDarkMode }: { data: TfPlanData; isDarkMode: boolean }) {
   const cardBg      = isDarkMode ? "rgba(255,255,255,0.04)" : "#f6f8fa";
   const borderColor = isDarkMode ? "rgba(255,255,255,0.12)" : "#d0d7de";
@@ -257,6 +262,7 @@ function AppContent({ isDarkMode, setIsDarkMode }: { isDarkMode: boolean; setIsD
   const [selectedGuide, setSelectedGuide] = useState<Guide | null>(null);
   const [guideContent, setGuideContent] = useState<string>("");
   const [guideLoading, setGuideLoading] = useState(false);
+  const [pendingPlan, setPendingPlan] = useState<string | null>(null);
   const sessionIdRef = useRef<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const theme = useTheme();
@@ -666,7 +672,10 @@ function AppContent({ isDarkMode, setIsDarkMode }: { isDarkMode: boolean; setIsD
           component="form"
           onSubmit={(e) => {
             e.preventDefault();
-            handleSend(input);
+            const text = pendingPlan ?? input;
+            setPendingPlan(null);
+            setInput("");
+            handleSend(text);
           }}
           sx={{
             display: "flex",
@@ -675,37 +684,89 @@ function AppContent({ isDarkMode, setIsDarkMode }: { isDarkMode: boolean; setIsD
             maxWidth: "100%",
           }}
         >
-          {isTerraformPlan(input) && (
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-              <Chip
-                label="⚡ Terraform plan detected — will visualise + review"
-                size="small"
+          {/* Plan ready pill — shown instead of raw pasted text */}
+          {pendingPlan && (() => {
+            const s = extractPlanSummary(pendingPlan);
+            const counts = [
+              s && s.add     > 0 && { cfg: TF_ACTION.create,  n: s.add     },
+              s && s.change  > 0 && { cfg: TF_ACTION.update,  n: s.change  },
+              s && s.destroy > 0 && { cfg: TF_ACTION.destroy, n: s.destroy },
+            ].filter(Boolean) as { cfg: typeof TF_ACTION[string]; n: number }[];
+            return (
+              <Box
                 sx={{
-                  bgcolor: isDarkMode ? "rgba(120,250,174,0.12)" : "rgba(14,58,47,0.08)",
-                  color: primaryColor,
-                  fontWeight: 600,
-                  fontSize: "0.72rem",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 1.5,
+                  px: 2,
+                  py: 1.25,
+                  borderRadius: 3,
                   border: `1px solid ${isDarkMode ? "rgba(120,250,174,0.3)" : "rgba(14,58,47,0.2)"}`,
+                  bgcolor: isDarkMode ? "rgba(120,250,174,0.06)" : "rgba(14,58,47,0.04)",
+                  flexWrap: "wrap",
+                  rowGap: 0.5,
                 }}
-              />
-              <Typography variant="caption" color="text.secondary">
-                Press Enter to send
-              </Typography>
-            </Box>
-          )}
+              >
+                <Typography sx={{ fontSize: "0.8rem", fontWeight: 700, color: primaryColor, fontFamily: "monospace", mr: 0.5 }}>
+                  ⚡ terraform.plan
+                </Typography>
+                {counts.map(({ cfg, n }) => (
+                  <Chip
+                    key={cfg.label}
+                    label={`${cfg.symbol} ${n} ${cfg.label}`}
+                    size="small"
+                    sx={{
+                      bgcolor: cfg.bg,
+                      color: cfg.color,
+                      fontWeight: 700,
+                      fontSize: "0.7rem",
+                      height: 22,
+                      fontFamily: "monospace",
+                      border: `1px solid ${cfg.color}44`,
+                    }}
+                  />
+                ))}
+                <Box sx={{ flexGrow: 1 }} />
+                <Typography variant="caption" color="text.secondary" sx={{ mr: 0.5 }}>
+                  Press Enter to send
+                </Typography>
+                <IconButton
+                  size="small"
+                  onClick={() => setPendingPlan(null)}
+                  sx={{ p: 0.5 }}
+                  title="Discard plan"
+                >
+                  <X size={16} />
+                </IconButton>
+              </Box>
+            );
+          })()}
+
           <Box sx={{ display: "flex", gap: 2, alignItems: "flex-end" }}>
             <TextField
               fullWidth
               multiline
               minRows={1}
-              maxRows={isTerraformPlan(input) ? 14 : 4}
+              maxRows={4}
               placeholder="Ask Copilot about DevOps, or paste a terraform plan…"
               value={input}
-              onChange={(e) => setInput(e.target.value)}
+              onChange={(e) => {
+                const v = e.target.value;
+                if (isTerraformPlan(v)) {
+                  setPendingPlan(v);
+                  setInput("");
+                } else {
+                  setInput(v);
+                }
+              }}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
-                  handleSend(input);
+                  const text = pendingPlan ?? input;
+                  if (!text.trim()) return;
+                  setPendingPlan(null);
+                  setInput("");
+                  handleSend(text);
                 }
               }}
               variant="outlined"
@@ -713,17 +774,13 @@ function AppContent({ isDarkMode, setIsDarkMode }: { isDarkMode: boolean; setIsD
                 "& .MuiOutlinedInput-root": {
                   borderRadius: 3,
                   bgcolor: inputBg,
-                  ...(isTerraformPlan(input) && {
-                    borderColor: primaryColor,
-                    "& fieldset": { borderColor: `${primaryColor} !important` },
-                  }),
                 },
               }}
             />
             <Button
               variant="contained"
               type="submit"
-              disabled={!input.trim() || isLoading}
+              disabled={!((pendingPlan ?? input).trim()) || isLoading}
               sx={{
                 minWidth: 56,
                 width: 56,
