@@ -93,3 +93,24 @@ class DocumentContentResponse(BaseModel):
     title: str
     content: str  # full reassembled markdown
     chunk_count: int
+
+
+# ─── Terraform Plan schemas ──────────────────────────────────────────────────
+
+class TerraformPlanRequest(BaseModel):
+    """Raw terraform plan text output to parse."""
+    plan_output: str = Field(..., min_length=10, description="Raw output of `terraform plan`.")
+
+
+class TfResource(BaseModel):
+    address: str
+    type: str
+    name: str
+    action: str  # create | destroy | update | replace | read
+    risks: list[str] = Field(default_factory=list)
+
+
+class TerraformPlanResponse(BaseModel):
+    summary: dict  # {add, change, destroy}
+    resources: list[TfResource]
+    total_changes: int

@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 
-from app.routers import chat, documents, health
+from app.routers import chat, documents, health, terraform
 from app.config import settings
 
 logger = structlog.get_logger()
@@ -41,3 +41,4 @@ app.add_middleware(
 app.include_router(health.router)
 app.include_router(chat.router, prefix="/api/v1")
 app.include_router(documents.router, prefix="/api/v1")
+app.include_router(terraform.router, prefix="/api/v1")

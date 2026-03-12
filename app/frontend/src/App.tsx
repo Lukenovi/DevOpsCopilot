@@ -56,6 +56,7 @@ type Message = {
   id: string;
   role: "user" | "model";
   text: string;
+  planData?: TfPlanData;
 };
 
 type ViewState = "chat" | "guides" | "status" | "settings";
@@ -99,6 +100,147 @@ const GUIDES: Guide[] = [
     source: "nexus-artifacts",
   },
 ];
+
+// ─── Terraform Plan visualisation ──────────────────────────────────────────────
+type TfResource = {
+  address: string;
+  type: string;
+  name: string;
+  action: "create" | "destroy" | "update" | "replace" | "read";
+  risks: string[];
+};
+type TfPlanData = {
+  summary: { add: number; change: number; destroy: number };
+  resources: TfResource[];
+  total_changes: number;
+};
+
+const TF_ACTION: Record<string, { symbol: string; color: string; bg: string; label: string }> = {
+  create:  { symbol: "+",  color: "#2da44e", bg: "rgba(45,164,78,0.12)",   label: "add"     },
+  destroy: { symbol: "−",  color: "#cf222e", bg: "rgba(207,34,46,0.12)",  label: "destroy" },
+  update:  { symbol: "~",  color: "#bf8700", bg: "rgba(212,167,44,0.12)",  label: "change"  },
+  replace: { symbol: "±",  color: "#cf222e", bg: "rgba(207,34,46,0.12)",  label: "replace" },
+  read:    { symbol: "→",  color: "#0969da", bg: "rgba(9,105,218,0.12)",  label: "read"    },
+};
+
+function isTerraformPlan(text: string): boolean {
+  return (
+    /Plan:\s+\d+ to add,\s+\d+ to change,\s+\d+ to destroy/i.test(text) ||
+    (/Terraform will perform the following actions/i.test(text) && /Plan:/i.test(text))
+  );
+}
+
+function TerraformPlanCard({ data, isDarkMode }: { data: TfPlanData; isDarkMode: boolean }) {
+  const cardBg      = isDarkMode ? "rgba(255,255,255,0.04)" : "#f6f8fa";
+  const borderColor = isDarkMode ? "rgba(255,255,255,0.12)" : "#d0d7de";
+  const metaColor   = isDarkMode ? "rgba(255,255,255,0.45)" : "#57606a";
+
+  const summaryRows = [
+    { count: data.summary.add,     cfg: TF_ACTION.create  },
+    { count: data.summary.change,  cfg: TF_ACTION.update  },
+    { count: data.summary.destroy, cfg: TF_ACTION.destroy },
+  ].filter(r => r.count > 0);
+
+  return (
+    <Box sx={{ mb: 2 }}>
+      {/* header row */}
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1, flexWrap: "wrap" }}>
+        <Typography
+          variant="caption"
+          sx={{ fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.8, color: metaColor, mr: 0.5 }}
+        >
+          Terraform Plan
+        </Typography>
+        {summaryRows.map(({ count, cfg }) => (
+          <Chip
+            key={cfg.label}
+            label={`${cfg.symbol} ${count} ${cfg.label}`}
+            size="small"
+            sx={{
+              bgcolor: cfg.bg,
+              color: cfg.color,
+              fontWeight: 700,
+              fontSize: "0.7rem",
+              height: 22,
+              fontFamily: "monospace",
+              border: `1px solid ${cfg.color}44`,
+            }}
+          />
+        ))}
+        {data.resources.some(r => r.risks.length > 0) && (
+          <Chip
+            label="⚠️ risks detected"
+            size="small"
+            sx={{ bgcolor: "rgba(255,140,0,0.12)", color: "#e6820a", fontWeight: 600, fontSize: "0.7rem", height: 22 }}
+          />
+        )}
+      </Box>
+
+      {/* resource list */}
+      <Box
+        sx={{
+          border: `1px solid ${borderColor}`,
+          borderRadius: 2,
+          overflow: "hidden",
+          maxHeight: 340,
+          overflowY: "auto",
+          bgcolor: cardBg,
+        }}
+      >
+        {data.resources.length === 0 ? (
+          <Box sx={{ p: 2 }}>
+            <Typography variant="body2" color="text.secondary">No resource changes detected.</Typography>
+          </Box>
+        ) : (
+          data.resources.map((r, i) => {
+            const cfg = TF_ACTION[r.action] ?? TF_ACTION.update;
+            return (
+              <Box
+                key={r.address}
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 1.5,
+                  px: 1.5,
+                  py: 0.75,
+                  borderBottom: i < data.resources.length - 1 ? `1px solid ${borderColor}` : "none",
+                  borderLeft: `3px solid ${cfg.color}`,
+                }}
+              >
+                <Typography
+                  sx={{ fontFamily: "monospace", fontSize: "1rem", fontWeight: 800, color: cfg.color, width: 18, flexShrink: 0 }}
+                >
+                  {cfg.symbol}
+                </Typography>
+                <Typography
+                  sx={{
+                    fontFamily: "'Fira Code', Consolas, monospace",
+                    fontSize: "0.78rem",
+                    color: isDarkMode ? "#e6edf3" : "#24292f",
+                    flex: 1,
+                    wordBreak: "break-all",
+                  }}
+                >
+                  {r.address}
+                </Typography>
+                <Box sx={{ display: "flex", gap: 0.5, flexShrink: 0, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                  {r.risks.map(risk => (
+                    <Chip
+                      key={risk}
+                      label={risk}
+                      size="small"
+                      sx={{ bgcolor: "rgba(255,140,0,0.12)", color: "#e6820a", fontWeight: 600, fontSize: "0.62rem", height: 18 }}
+                    />
+                  ))}
+                </Box>
+              </Box>
+            );
+          })
+        )}
+      </Box>
+    </Box>
+  );
+}
 
 function AppContent({ isDarkMode, setIsDarkMode }: { isDarkMode: boolean; setIsDarkMode: (value: boolean) => void }) {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -183,7 +325,9 @@ function AppContent({ isDarkMode, setIsDarkMode }: { isDarkMode: boolean; setIsD
 
     try {
       const backendUrl = (import.meta as any).env?.VITE_BACKEND_URL || "";
-      const response = await fetch(`${backendUrl}/api/v1/chat`, {
+
+      const isPlan = isTerraformPlan(text);
+      const chatPromise = fetch(`${backendUrl}/api/v1/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -192,12 +336,23 @@ function AppContent({ isDarkMode, setIsDarkMode }: { isDarkMode: boolean; setIsD
           user_id: "anonymous",
         }),
       });
+      const planPromise = isPlan
+        ? fetch(`${backendUrl}/api/v1/terraform/plan`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ plan_output: text }),
+          })
+        : null;
+
+      const [response, planResponse] = await Promise.all([chatPromise, planPromise]);
 
       if (!response.ok) {
         throw new Error(`Server error: ${response.status}`);
       }
 
       const data = await response.json();
+      const planData: TfPlanData | undefined =
+        planResponse?.ok ? await planResponse.json() : undefined;
 
       // Persist session_id for conversation continuity
       if (data.session_id) {
@@ -208,6 +363,7 @@ function AppContent({ isDarkMode, setIsDarkMode }: { isDarkMode: boolean; setIsD
         id: (Date.now() + 1).toString(),
         role: "model",
         text: data.message?.content || "Sorry, I could not generate a response.",
+        planData,
       };
 
       setMessages((prev) => [...prev, newModelMessage]);
@@ -467,6 +623,9 @@ function AppContent({ isDarkMode, setIsDarkMode }: { isDarkMode: boolean; setIsD
                   },
                 }}
               >
+                {msg.planData && (
+                  <TerraformPlanCard data={msg.planData} isDarkMode={isDarkMode} />
+                )}
                 <ReactMarkdown>{msg.text}</ReactMarkdown>
               </Box>
             </Paper>
