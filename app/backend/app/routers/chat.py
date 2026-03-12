@@ -41,7 +41,7 @@ async def chat(request: ChatRequest) -> ChatResponse:
             lines = [
                 f"Please review this Terraform plan: "
                 f"{s['add']} resource(s) to add, {s['change']} to change, {s['destroy']} to destroy. "
-                f"{parsed['total_changes']} total changes.",
+                f"{len(parsed['resources'])} total changes.",
                 "",
                 "Resource breakdown:",
             ]
@@ -57,7 +57,7 @@ async def chat(request: ChatRequest) -> ChatResponse:
             logger.info("tf_plan_condensed",
                         original_len=len(request.message),
                         condensed_len=len(effective_message),
-                        resources=parsed["total_changes"])
+                        resources=len(parsed["resources"]))
 
         # Retrieve relevant internal knowledge chunks
         chunks = await retrieval_service.retrieve(effective_message)
