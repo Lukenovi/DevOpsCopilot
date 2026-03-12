@@ -108,6 +108,7 @@ type TfResource = {
   name: string;
   action: "create" | "destroy" | "update" | "replace" | "read";
   risks: string[];
+  key_params?: Record<string, string>;
 };
 type TfPlanData = {
   summary: { add: number; change: number; destroy: number };
@@ -204,40 +205,65 @@ function TerraformPlanCard({ data, isDarkMode }: { data: TfPlanData; isDarkMode:
                 key={r.address}
                 sx={{
                   display: "flex",
-                  alignItems: "center",
-                  gap: 1.5,
+                  flexDirection: "column",
                   px: 1.5,
                   py: 0.75,
                   borderBottom: i < data.resources.length - 1 ? `1px solid ${borderColor}` : "none",
                   borderLeft: `3px solid ${cfg.color}`,
                 }}
               >
-                <Typography
-                  sx={{ fontFamily: "monospace", fontSize: "1rem", fontWeight: 800, color: cfg.color, width: 18, flexShrink: 0 }}
-                >
-                  {cfg.symbol}
-                </Typography>
-                <Typography
-                  sx={{
-                    fontFamily: "'Fira Code', Consolas, monospace",
-                    fontSize: "0.78rem",
-                    color: isDarkMode ? "#e6edf3" : "#24292f",
-                    flex: 1,
-                    wordBreak: "break-all",
-                  }}
-                >
-                  {r.address}
-                </Typography>
-                <Box sx={{ display: "flex", gap: 0.5, flexShrink: 0, flexWrap: "wrap", justifyContent: "flex-end" }}>
-                  {r.risks.map(risk => (
-                    <Chip
-                      key={risk}
-                      label={risk}
-                      size="small"
-                      sx={{ bgcolor: "rgba(255,140,0,0.12)", color: "#e6820a", fontWeight: 600, fontSize: "0.62rem", height: 18 }}
-                    />
-                  ))}
+                {/* ── main row: symbol + address + risk chips ── */}
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+                  <Typography
+                    sx={{ fontFamily: "monospace", fontSize: "1rem", fontWeight: 800, color: cfg.color, width: 18, flexShrink: 0 }}
+                  >
+                    {cfg.symbol}
+                  </Typography>
+                  <Typography
+                    sx={{
+                      fontFamily: "'Fira Code', Consolas, monospace",
+                      fontSize: "0.78rem",
+                      color: isDarkMode ? "#e6edf3" : "#24292f",
+                      flex: 1,
+                      wordBreak: "break-all",
+                    }}
+                  >
+                    {r.address}
+                  </Typography>
+                  <Box sx={{ display: "flex", gap: 0.5, flexShrink: 0, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                    {r.risks.map(risk => (
+                      <Chip
+                        key={risk}
+                        label={risk}
+                        size="small"
+                        sx={{ bgcolor: "rgba(255,140,0,0.12)", color: "#e6820a", fontWeight: 600, fontSize: "0.62rem", height: 18 }}
+                      />
+                    ))}
+                  </Box>
                 </Box>
+                {/* ── key params row ── */}
+                {r.key_params && Object.keys(r.key_params).length > 0 && (
+                  <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, mt: 0.4, pl: "26px" }}>
+                    {Object.entries(r.key_params).map(([k, v]) => (
+                      <Typography
+                        key={k}
+                        component="span"
+                        sx={{
+                          fontFamily: "'Fira Code', Consolas, monospace",
+                          fontSize: "0.68rem",
+                          color: isDarkMode ? "#8b949e" : "#57606a",
+                          bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)",
+                          borderRadius: "4px",
+                          px: 0.5,
+                          py: 0.1,
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {k}=<span style={{ color: isDarkMode ? "#79c0ff" : "#0550ae" }}>{v}</span>
+                      </Typography>
+                    ))}
+                  </Box>
+                )}
               </Box>
             );
           })

@@ -14,6 +14,15 @@ _IAM_KEYWORDS   = {"iam", "role", "policy", "binding", "member", "permission", "
 _DATA_KEYWORDS  = {"database", "sql", "bucket", "storage", "disk", "volume", "snapshot", "backup", "db"}
 _NET_KEYWORDS   = {"firewall", "security_group", "route", "nat", "subnet", "vpc", "network_acl"}
 
+# Attribute keys considered informative for AI review and visual display
+_INTERESTING_KEYS: frozenset[str] = frozenset({
+    "role", "member", "name", "project", "location", "region",
+    "secret", "service", "service_account", "image", "runtime",
+    "bucket", "topic", "dataset", "machine_type", "network", "subnetwork",
+    "port", "version", "database", "instance", "cluster", "node_pool",
+    "repository", "namespace", "container_name", "environment",
+})
+
 # Ordered patterns: (regex, action)
 _PATTERNS: list[tuple[str, str]] = [
     (r"#\s+(\S+)\s+will be created",           "create"),
@@ -24,6 +33,41 @@ _PATTERNS: list[tuple[str, str]] = [
     (r"#\s+(\S+)\s+will be read during apply",  "read"),
     (r"#\s+(\S+)\s+will be created\s+\(new resource required\)", "replace"),
 ]
+
+
+def _extract_params(block_text: str) -> dict[str, str]:
+    """
+    Extract interesting attribute values from a single Terraform resource block.
+    Captures lines like:
+      + role   = "roles/run.invoker"
+      ~ image  = "old-image" -> "new-image"
+    Skips computed / sensitive values and very long strings.
+    """
+    params: dict[str, str] = {}
+
+    # Plain assignment: + key = "value"  or  ~ key = "value"
+    for m in re.finditer(
+        r'^\s+[+~]\s+([\w]+)\s+=\s+"([^"]{1,120})"',
+        block_text, re.MULTILINE,
+    ):
+        key, val = m.group(1), m.group(2)
+        if (
+            key in _INTERESTING_KEYS
+            and "(known after apply)" not in val
+            and "(sensitive" not in val
+        ):
+            params[key] = val
+
+    # Update assignment: ~ key = "old" -> "new"
+    for m in re.finditer(
+        r'^\s+~\s+([\w]+)\s+=\s+"[^"]*"\s+->\s+"([^"]{1,120})"',
+        block_text, re.MULTILINE,
+    ):
+        key, val = m.group(1), m.group(2)
+        if key in _INTERESTING_KEYS and "(known after apply)" not in val:
+            params[key] = f"→ {val}"
+
+    return params
 
 
 def _detect_risks(resource_type: str, action: str) -> list[str]:
@@ -72,26 +116,42 @@ def isTerraformPlan(text: str) -> bool:
 
 
 def parse_terraform_plan(plan_text: str) -> dict:
-    """Parse raw terraform plan output; returns summary + resource list."""
-    seen: set[str] = set()
-    resources: list[dict] = []
-
+    """
+    Parse raw terraform plan output; returns summary + resource list.
+    Each resource includes key attribute values extracted from its block.
+    """
+    # ── Step 1: collect all resource action positions ──────────────────────
+    candidates: list[tuple[int, str, str]] = []  # (char_pos, address, action)
     for pattern, action in _PATTERNS:
         for match in re.finditer(pattern, plan_text, re.IGNORECASE):
-            address = match.group(1)
-            if address in seen:
-                continue
-            seen.add(address)
-            resource_type, resource_name = _parse_address(address)
-            resources.append({
-                "address": address,
-                "type": resource_type,
-                "name": resource_name,
-                "action": action,
-                "risks": _detect_risks(resource_type, action),
-            })
+            candidates.append((match.start(), match.group(1), action))
 
-    # Try to read summary line from the plan output
+    # Sort by position; deduplicate by address (keep first occurrence per address)
+    candidates.sort(key=lambda x: x[0])
+    seen: set[str] = set()
+    ordered: list[tuple[int, str, str]] = []
+    for pos, addr, action in candidates:
+        if addr not in seen:
+            seen.add(addr)
+            ordered.append((pos, addr, action))
+
+    # ── Step 2: for each resource, extract its block text and parse params ─
+    resources: list[dict] = []
+    for idx, (pos, address, action) in enumerate(ordered):
+        # Block ends just before the next resource header line
+        next_pos = ordered[idx + 1][0] if idx + 1 < len(ordered) else len(plan_text)
+        block_text = plan_text[pos:next_pos]
+        resource_type, resource_name = _parse_address(address)
+        resources.append({
+            "address": address,
+            "type": resource_type,
+            "name": resource_name,
+            "action": action,
+            "risks": _detect_risks(resource_type, action),
+            "key_params": _extract_params(block_text),
+        })
+
+    # ── Step 3: parse summary line ─────────────────────────────────────────
     summary_match = re.search(
         r"Plan:\s+(\d+) to add,\s+(\d+) to change,\s+(\d+) to destroy",
         plan_text, re.IGNORECASE,

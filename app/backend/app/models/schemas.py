@@ -108,6 +108,7 @@ class TfResource(BaseModel):
     name: str
     action: str  # create | destroy | update | replace | read
     risks: list[str] = Field(default_factory=list)
+    key_params: dict = Field(default_factory=dict)
 
 
 class TerraformPlanResponse(BaseModel):

@@ -48,6 +48,9 @@ async def chat(request: ChatRequest) -> ChatResponse:
             for r in parsed["resources"]:
                 risk_str = f"  ← {', '.join(r['risks'])}" if r["risks"] else ""
                 lines.append(f"  [{r['action'].upper()}] {r['address']}{risk_str}")
+                if r.get("key_params"):
+                    kp = ", ".join(f"{k}={v}" for k, v in r["key_params"].items())
+                    lines.append(f"           {kp}")
             lines += [
                 "",
                 "Flag any risky changes (destructive, IAM, data resources), explain the impact "
